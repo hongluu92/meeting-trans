@@ -15,7 +15,7 @@ export function SubtitleEntry({ entry }: SubtitleEntryProps) {
   });
 
   return (
-    <div className="px-4 py-2 animate-fade-in">
+    <div className={`px-4 py-2 ${entry.partial ? "opacity-60" : "animate-fade-in"}`}>
       <div className="flex items-start gap-3">
         <span className="text-xs text-gray-600 pt-1 shrink-0">{time}</span>
         <div className="flex-1 min-w-0">
@@ -25,20 +25,26 @@ export function SubtitleEntry({ entry }: SubtitleEntryProps) {
             >
               {entry.source_lang}
             </span>
-            <span className="text-white text-lg leading-snug">
-              {entry.source_text}
+            <span className={`text-lg leading-snug ${entry.partial ? "text-gray-400 italic" : "text-white"}`}>
+              {entry.source_text}{entry.partial ? "..." : ""}
             </span>
           </div>
-          <div className="flex items-baseline gap-2 mt-0.5">
-            <span
-              className={`text-[10px] font-medium uppercase tracking-wider shrink-0 ${targetColor}`}
-            >
-              {entry.target_lang}
-            </span>
-            <span className="text-gray-400 text-sm leading-snug">
-              {entry.translated_text}
-            </span>
-          </div>
+          {(entry.translated_text || entry.translating) && (
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span
+                className={`text-[10px] font-medium uppercase tracking-wider shrink-0 ${targetColor}`}
+              >
+                {entry.target_lang}
+              </span>
+              {entry.translating ? (
+                <span className="text-gray-500 text-sm italic">...</span>
+              ) : (
+                <span className="text-gray-400 text-sm leading-snug">
+                  {entry.translated_text}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
