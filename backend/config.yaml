@@ -3,9 +3,11 @@
 # device: cpu, cuda, auto
 # compute_type: int8, float16, float32, int8_float16 (float16/int8_float16 require CUDA)
 whisper:
-  model_size: "small"
+  engine: "mlx"                   # "faster-whisper" or "mlx"
+  model_size: "base"
   device: "cpu"
   compute_type: "int8"
+  mlx_model: "mlx-community/whisper-base-mlx"  # HuggingFace repo (mlx engine only)
 
 # ── Transcription ────────────────────────────────────────────────
 transcription:
@@ -17,6 +19,9 @@ transcription:
 vad:
   threshold: 0.15
   min_speech_ms: 250
+  silence_duration_ms: 350    # silence after speech triggers segment cut
+  max_segment_s: 15           # force-cut long continuous speech
+  interim_interval_s: 0.5     # send partial STT every N seconds while speaking
 
 # ── Translation ─────────────────────────────────────────────────
 # Supported languages (add more as needed)

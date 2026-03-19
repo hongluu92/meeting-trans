@@ -9,8 +9,20 @@ from .config import get_config
 from .model_loader import get_model_status, load_model
 from .websocket_handler import handle_websocket
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
+# Enable INFO logs for our app modules
+logging.getLogger("app").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class _FilterStatusPoll(logging.Filter):
+    """Suppress repetitive /api/status access logs."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/api/status" not in record.getMessage()
+
+
+logging.getLogger("uvicorn.access").addFilter(_FilterStatusPoll())
 
 
 @asynccontextmanager
