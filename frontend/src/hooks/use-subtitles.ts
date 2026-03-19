@@ -7,6 +7,7 @@ export function useSubtitles() {
   const [entries, setEntries] = useState<TranslationResult[]>([]);
 
   const addEntry = useCallback((entry: TranslationResult) => {
+    if (!entry.source_text?.trim() && !entry.translated_text?.trim()) return;
     setEntries((prev) => {
       const next = [...prev, entry];
       return next.length > MAX_ENTRIES ? next.slice(-MAX_ENTRIES) : next;

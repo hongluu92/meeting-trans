@@ -5,17 +5,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from .model_loader import get_model_status, load_translator
+from .config import get_config
+from .model_loader import get_model_status, load_model
 from .websocket_handler import handle_websocket
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting model loading in background...")
-    asyncio.create_task(asyncio.to_thread(load_translator))
+    asyncio.create_task(asyncio.to_thread(load_model))
     yield
 
 
@@ -36,7 +37,12 @@ async def health():
 
 @app.get("/api/status")
 async def status():
-    return get_model_status()
+    cfg = get_config()
+    return {
+        **get_model_status(),
+        "whisper": cfg["whisper"],
+        "languages": cfg["languages"],
+    }
 
 
 @app.websocket("/ws/translate")

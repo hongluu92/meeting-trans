@@ -8,8 +8,16 @@ export interface TranslationResult {
 }
 
 export type Language = "en" | "ja" | "vi";
+export type SourceLanguage = "auto" | Language;
 
 export const LANG_LABELS: Record<Language, string> = {
+  en: "English",
+  ja: "日本語",
+  vi: "Tiếng Việt",
+};
+
+export const SOURCE_LANG_LABELS: Record<SourceLanguage, string> = {
+  auto: "Auto-detect",
   en: "English",
   ja: "日本語",
   vi: "Tiếng Việt",

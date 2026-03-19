@@ -1,10 +1,17 @@
-import { LANG_LABELS, type Language } from "../types";
+import {
+  LANG_LABELS,
+  SOURCE_LANG_LABELS,
+  type Language,
+  type SourceLanguage,
+} from "../types";
 
 interface ControlBarProps {
   isRecording: boolean;
   isConnected: boolean;
+  sourceLang: SourceLanguage;
   targetLang: Language;
   onToggleRecording: () => void;
+  onSourceLangChange: (lang: SourceLanguage) => void;
   onLangChange: (lang: Language) => void;
   onClear: () => void;
   onExport?: () => void;
@@ -13,8 +20,10 @@ interface ControlBarProps {
 export function ControlBar({
   isRecording,
   isConnected,
+  sourceLang,
   targetLang,
   onToggleRecording,
+  onSourceLangChange,
   onLangChange,
   onClear,
   onExport,
@@ -37,6 +46,23 @@ export function ControlBar({
             <div className="w-5 h-5 bg-red-400 rounded-full" />
           )}
         </button>
+
+        <div className="flex flex-col">
+          <span className="text-sm text-gray-400">Source</span>
+          <select
+            value={sourceLang}
+            onChange={(e) => onSourceLangChange(e.target.value as SourceLanguage)}
+            className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+          >
+            {(Object.entries(SOURCE_LANG_LABELS) as [SourceLanguage, string][]).map(
+              ([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ),
+            )}
+          </select>
+        </div>
 
         <div className="flex flex-col">
           <span className="text-sm text-gray-400">Translate to</span>

@@ -7,16 +7,17 @@ import { SubtitleDisplay } from "./components/subtitle-display";
 import { useAudioCapture } from "./hooks/use-audio-capture";
 import { useSubtitles } from "./hooks/use-subtitles";
 import { useWebSocket } from "./hooks/use-websocket";
-import type { Language } from "./types";
+import type { Language, SourceLanguage } from "./types";
 import { downloadTranscript } from "./utils/export-transcript";
 
 function AppInner() {
+  const [sourceLang, setSourceLang] = useState<SourceLanguage>("auto");
   const [targetLang, setTargetLang] = useState<Language>("vi");
   const [modelReady, setModelReady] = useState(false);
   const [modelStatus, setModelStatus] = useState("Checking model status...");
 
   const { entries, addEntry, clearEntries } = useSubtitles();
-  const ws = useWebSocket({ targetLang, onResult: addEntry });
+  const ws = useWebSocket({ sourceLang, targetLang, onResult: addEntry });
   const { sendAudio } = ws;
 
   const onChunk = useCallback(
@@ -87,8 +88,10 @@ function AppInner() {
       <ControlBar
         isRecording={audio.isRecording}
         isConnected={ws.isConnected}
+        sourceLang={sourceLang}
         targetLang={targetLang}
         onToggleRecording={toggleRecording}
+        onSourceLangChange={setSourceLang}
         onLangChange={setTargetLang}
         onClear={clearEntries}
         onExport={

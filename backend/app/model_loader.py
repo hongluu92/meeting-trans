@@ -1,11 +1,11 @@
 import logging
 import threading
 
-import torch
+from .config import get_config
 
 logger = logging.getLogger(__name__)
 
-_translator = None
+_model = None
 _model_loading = False
 _model_loaded = False
 _lock = threading.Lock()
@@ -18,41 +18,36 @@ def get_model_status() -> dict:
     }
 
 
-def load_translator():
-    global _translator, _model_loading, _model_loaded
+def load_model():
+    global _model, _model_loading, _model_loaded
 
-    if _translator is not None:
-        return _translator
+    if _model is not None:
+        return _model
 
     with _lock:
-        # Double-check after acquiring lock
-        if _translator is not None:
-            return _translator
+        if _model is not None:
+            return _model
+
+        cfg = get_config()["whisper"]
+        model_size = cfg["model_size"]
+        device = cfg["device"]
+        compute_type = cfg["compute_type"]
 
         _model_loading = True
-        logger.info("Loading SeamlessM4T v2 model...")
+        logger.info(
+            f"Loading faster-whisper model={model_size}, "
+            f"device={device}, compute_type={compute_type}"
+        )
 
         try:
-            from seamless_communication.inference import Translator
+            from faster_whisper import WhisperModel
 
-            device = torch.device("cpu")
-            dtype = torch.float32  # CPU requires float32; float16 only on CUDA
-
-            if torch.cuda.is_available():
-                device = torch.device("cuda:0")
-                dtype = torch.float16
-
-            _translator = Translator(
-                model_name_or_card="seamlessM4T_v2_large",
-                vocoder_name_or_card="vocoder_v2",
-                device=device,
-                dtype=dtype,
-            )
+            _model = WhisperModel(model_size, device=device, compute_type=compute_type)
 
             _model_loaded = True
             _model_loading = False
-            logger.info("SeamlessM4T v2 model loaded successfully")
-            return _translator
+            logger.info("Whisper model loaded successfully")
+            return _model
 
         except Exception as e:
             _model_loading = False
@@ -60,7 +55,7 @@ def load_translator():
             raise
 
 
-def get_translator():
-    if _translator is None:
-        raise RuntimeError("Model not loaded. Call load_translator() first.")
-    return _translator
+def get_model() -> "WhisperModel":
+    if _model is None:
+        raise RuntimeError("Model not loaded. Call load_model() first.")
+    return _model

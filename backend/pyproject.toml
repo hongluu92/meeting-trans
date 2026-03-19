@@ -2,13 +2,14 @@
 name = "stt-translator"
 version = "0.1.0"
 description = "Real-time multilingual speech translator using SeamlessM4T v2"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
     "websockets>=14.0",
     "torch>=2.1.0",
     "torchaudio>=2.1.0",
-    "fairseq2>=0.4.0",
+    "transformers>=4.40.0",
+    "sentencepiece>=0.2.0",
     "pydub>=0.25.1",
 ]

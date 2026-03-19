@@ -2,86 +2,96 @@ import asyncio
 import logging
 import time
 
-import torch
+import numpy as np
 
-from .model_loader import get_translator
+from .config import get_config
+from .model_loader import get_model
 
 logger = logging.getLogger(__name__)
 
-# SeamlessM4T v2 uses ISO 639-3 language codes
-LANG_MAP = {
-    "en": "eng",
-    "ja": "jpn",
-    "vi": "vie",
+# faster-whisper language codes -> our short codes
+WHISPER_LANG_MAP = {
+    "en": "en",
+    "english": "en",
+    "ja": "ja",
+    "japanese": "ja",
+    "vi": "vi",
+    "vietnamese": "vi",
 }
 
-LANG_REVERSE = {v: k for k, v in LANG_MAP.items()}
 
-# All supported source languages for ASR attempts
-SOURCE_LANGS = list(LANG_MAP.values())
+def get_lang_map() -> dict[str, str]:
+    """Build LANG_MAP from config."""
+    return {lang: lang for lang in get_config()["languages"]}
 
 
-async def translate_audio(audio_tensor: torch.Tensor, target_lang: str) -> dict:
-    """Run SeamlessM4T v2 S2TT + language detection via ASR.
+# Module-level alias for backward compat (used by websocket_handler)
+LANG_MAP = get_lang_map()
 
-    Strategy: S2TT auto-detects source for translation. For source text,
-    we run ASR with each candidate language and pick the longest result.
-    """
-    tgt_lang_code = LANG_MAP.get(target_lang, "eng")
+
+async def translate_audio(audio_tensor, target_lang: str, source_lang: str = "auto") -> dict:
+    """Transcribe with faster-whisper, translate with Google Translate."""
 
     def _run():
         start = time.time()
-        translator = get_translator()
+        model = get_model()
+        cfg = get_config()["transcription"]
 
-        # S2TT: speech-to-text translation (auto-detects source internally)
-        translated_text, _ = translator.predict(
-            input=audio_tensor,
-            task_str="S2TT",
-            tgt_lang=tgt_lang_code,
+        # Convert torch tensor to numpy
+        audio_np = audio_tensor.numpy().astype(np.float32)
+        logger.info(
+            f"[Translator] start, source={source_lang}, target={target_lang}, "
+            f"samples={len(audio_np)}"
         )
-        translated_str = str(translated_text[0])
 
-        # Detect source language by running ASR in each candidate language
-        # Pick the result with most content (heuristic for correct language)
-        best_source = ""
-        best_lang = "eng"
-        for lang_code in SOURCE_LANGS:
-            if lang_code == tgt_lang_code:
-                continue
+        # STT with faster-whisper
+        t0 = time.time()
+        transcribe_kwargs = {
+            "beam_size": cfg["beam_size"],
+            "best_of": cfg["best_of"],
+            "vad_filter": cfg["vad_filter"],
+        }
+        if source_lang != "auto":
+            transcribe_kwargs["language"] = source_lang
+        segments, info = model.transcribe(audio_np, **transcribe_kwargs)
+        source_text = " ".join(seg.text.strip() for seg in segments)
+        detected_lang = WHISPER_LANG_MAP.get(info.language, info.language)
+        logger.info(
+            f"[Translator] STT ({int((time.time()-t0)*1000)}ms): "
+            f"lang={info.language}({info.language_probability:.2f}) "
+            f"text='{source_text[:80]}'"
+        )
+
+        if not source_text.strip():
+            return {"status": "no_speech"}
+
+        # Translate if source != target
+        translated_text = source_text
+        if detected_lang != target_lang:
+            t1 = time.time()
             try:
-                asr_text, _ = translator.predict(
-                    input=audio_tensor,
-                    task_str="ASR",
-                    tgt_lang=lang_code,
-                )
-                asr_str = str(asr_text[0])
-                if len(asr_str) > len(best_source):
-                    best_source = asr_str
-                    best_lang = lang_code
-            except Exception:
-                continue
+                from deep_translator import GoogleTranslator
 
-        # Also try ASR in the target language (speaker might be speaking target lang)
-        try:
-            asr_text, _ = translator.predict(
-                input=audio_tensor,
-                task_str="ASR",
-                tgt_lang=tgt_lang_code,
-            )
-            asr_str = str(asr_text[0])
-            if len(asr_str) > len(best_source):
-                best_source = asr_str
-                best_lang = tgt_lang_code
-        except Exception:
-            pass
+                translated_text = GoogleTranslator(
+                    source="auto",
+                    target=target_lang,
+                ).translate(source_text)
+                logger.info(
+                    f"[Translator] translate ({int((time.time()-t1)*1000)}ms): "
+                    f"'{translated_text[:80]}'"
+                )
+            except Exception as e:
+                logger.error(f"[Translator] translation failed: {e}")
+                translated_text = source_text
 
         duration_ms = int((time.time() - start) * 1000)
+        logger.info(f"[Translator] done in {duration_ms}ms")
 
         return {
-            "source_lang": LANG_REVERSE.get(best_lang, best_lang),
-            "source_text": best_source,
+            "source_lang": detected_lang,
+            "source_text": source_text,
             "target_lang": target_lang,
-            "translated_text": translated_str,
+            "translated_text": translated_text,
             "duration_ms": duration_ms,
             "timestamp": int(time.time() * 1000),
         }
