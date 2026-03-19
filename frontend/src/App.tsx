@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ControlBar } from "./components/control-bar";
 import { ErrorBoundary } from "./components/error-boundary";
 import { LoadingScreen } from "./components/loading-screen";
-import { StatusIndicator } from "./components/status-indicator";
+import { RecordButton } from "./components/record-button";
 import { SubtitleDisplay } from "./components/subtitle-display";
 import { useAudioCapture } from "./hooks/use-audio-capture";
 import { useSubtitles } from "./hooks/use-subtitles";
@@ -84,13 +84,11 @@ function AppInner() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col">
+    <div className="h-screen bg-gray-950 text-white flex flex-col overflow-hidden">
       <ControlBar
-        isRecording={audio.isRecording}
         isConnected={ws.isConnected}
         sourceLang={sourceLang}
         targetLang={targetLang}
-        onToggleRecording={toggleRecording}
         onSourceLangChange={setSourceLang}
         onLangChange={setTargetLang}
         onClear={clearEntries}
@@ -99,8 +97,9 @@ function AppInner() {
         }
       />
       <SubtitleDisplay entries={entries} />
-      <StatusIndicator
+      <RecordButton
         isRecording={audio.isRecording}
+        onToggle={toggleRecording}
         isConnected={ws.isConnected}
         isProcessing={ws.isProcessing}
         error={audio.error}

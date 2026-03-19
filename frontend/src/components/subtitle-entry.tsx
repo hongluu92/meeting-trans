@@ -15,29 +15,31 @@ export function SubtitleEntry({ entry }: SubtitleEntryProps) {
   });
 
   return (
-    <div className="bg-gray-900/50 border border-gray-800 rounded-lg px-4 py-3 animate-fade-in">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 space-y-1">
-          <div className="flex items-center gap-2">
+    <div className="px-4 py-2 animate-fade-in">
+      <div className="flex items-start gap-3">
+        <span className="text-xs text-gray-600 pt-1 shrink-0">{time}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2">
             <span
-              className={`text-xs font-medium uppercase tracking-wider ${sourceColor}`}
+              className={`text-[10px] font-medium uppercase tracking-wider shrink-0 ${sourceColor}`}
             >
               {entry.source_lang}
             </span>
-            <span className="text-gray-100">{entry.source_text}</span>
+            <span className="text-white text-lg leading-snug">
+              {entry.source_text}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-baseline gap-2 mt-0.5">
             <span
-              className={`text-xs font-medium uppercase tracking-wider ${targetColor}`}
+              className={`text-[10px] font-medium uppercase tracking-wider shrink-0 ${targetColor}`}
             >
               {entry.target_lang}
             </span>
-            <span className="text-gray-300">
-              → {entry.translated_text}
+            <span className="text-gray-400 text-sm leading-snug">
+              {entry.translated_text}
             </span>
           </div>
         </div>
-        <span className="text-xs text-gray-600 whitespace-nowrap">{time}</span>
       </div>
     </div>
   );

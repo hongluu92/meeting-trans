@@ -24,7 +24,7 @@ export function SubtitleDisplay({ entries }: SubtitleDisplayProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+    <div className="flex-1 overflow-y-auto py-2 divide-y divide-gray-800/50">
       {entries.map((entry, i) => (
         <SubtitleEntry key={`${entry.timestamp}-${i}`} entry={entry} />
       ))}
