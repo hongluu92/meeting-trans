@@ -11,6 +11,12 @@ export interface TranslationResult {
 
 export type Language = "en" | "ja" | "vi" | "ko";
 export type SourceLanguage = "auto" | Language;
+export type AudioSource = "mic" | "system";
+
+export const AUDIO_SOURCE_LABELS: Record<AudioSource, string> = {
+  mic: "Microphone",
+  system: "System Audio",
+};
 
 export const LANG_LABELS: Record<Language, string> = {
   en: "English",

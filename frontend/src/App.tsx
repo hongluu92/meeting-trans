@@ -7,12 +7,13 @@ import { SubtitleDisplay } from "./components/subtitle-display";
 import { useAudioCapture } from "./hooks/use-audio-capture";
 import { useSubtitles } from "./hooks/use-subtitles";
 import { useWebSocket } from "./hooks/use-websocket";
-import type { Language, SourceLanguage } from "./types";
+import type { AudioSource, Language, SourceLanguage } from "./types";
 import { downloadTranscript } from "./utils/export-transcript";
 
 function AppInner() {
   const [sourceLang, setSourceLang] = useState<SourceLanguage>("auto");
   const [targetLang, setTargetLang] = useState<Language>("vi");
+  const [audioSource, setAudioSource] = useState<AudioSource>("mic");
   const [modelReady, setModelReady] = useState(false);
   const [modelStatus, setModelStatus] = useState("Checking model status...");
 
@@ -24,7 +25,7 @@ function AppInner() {
     (blob: Blob) => sendAudio(blob),
     [sendAudio],
   );
-  const audio = useAudioCapture({ onChunk });
+  const audio = useAudioCapture({ onChunk, audioSource });
 
   // Poll model status on mount
   useEffect(() => {
@@ -89,8 +90,11 @@ function AppInner() {
         isConnected={ws.isConnected}
         sourceLang={sourceLang}
         targetLang={targetLang}
+        audioSource={audioSource}
+        isRecording={audio.isRecording}
         onSourceLangChange={setSourceLang}
         onLangChange={setTargetLang}
+        onAudioSourceChange={setAudioSource}
         onClear={clearEntries}
         onExport={
           entries.length > 0 ? () => downloadTranscript(entries) : undefined
