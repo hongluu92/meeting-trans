@@ -1,14 +1,20 @@
 import { useCallback, useRef, useState } from "react";
+import type { AudioSource } from "../types";
 
 interface UseAudioCaptureOptions {
   onChunk: (blob: Blob) => void;
+  audioSource: AudioSource;
 }
 
 /**
- * Captures mic audio as raw Float32 PCM at 16kHz using AudioWorklet.
+ * Captures audio as raw Float32 PCM at 16kHz using AudioWorklet.
+ * Supports microphone or system audio (via getDisplayMedia).
  * Posts binary chunks (~256ms each) via onChunk callback.
  */
-export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
+export function useAudioCapture({
+  onChunk,
+  audioSource,
+}: UseAudioCaptureOptions) {
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -21,13 +27,48 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
     try {
       setError(null);
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          channelCount: 1,
-        },
-      });
+      let stream: MediaStream;
+
+      if (audioSource === "system") {
+        // getDisplayMedia captures screen + system audio
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true, // required by browser, but we only need audio
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        });
+
+        // Stop video tracks immediately — we only need audio
+        for (const track of displayStream.getVideoTracks()) {
+          track.stop();
+        }
+
+        const audioTracks = displayStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          throw new Error(
+            "No audio track found. Make sure to check 'Share audio' when selecting the screen/tab.",
+          );
+        }
+
+        // Create a new stream with only audio tracks
+        stream = new MediaStream(audioTracks);
+
+        // Listen for user stopping the share via browser UI
+        audioTracks[0].onended = () => {
+          stop();
+        };
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            channelCount: 1,
+          },
+        });
+      }
+
       streamRef.current = stream;
 
       // Create AudioContext at 16kHz — browser resamples for us
@@ -37,13 +78,15 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
       await audioContext.audioWorklet.addModule("/audio-worklet-processor.js");
 
       const source = audioContext.createMediaStreamSource(stream);
-      const workletNode = new AudioWorkletNode(audioContext, "pcm-capture-processor");
+      const workletNode = new AudioWorkletNode(
+        audioContext,
+        "pcm-capture-processor",
+      );
       workletNodeRef.current = workletNode;
 
       workletNode.port.onmessage = (event: MessageEvent) => {
         const { pcm } = event.data as { pcm: Float32Array };
         if (pcm && pcm.length > 0) {
-          // Send raw Float32 bytes — use slice() to get exact byte range
           const blob = new Blob(
             [pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + pcm.byteLength)],
             { type: "application/octet-stream" },
@@ -58,10 +101,11 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
       setIsRecording(true);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to access microphone";
+        err instanceof Error ? err.message : "Failed to access audio source";
       setError(message);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioSource]);
 
   const stop = useCallback(() => {
     workletNodeRef.current?.disconnect();

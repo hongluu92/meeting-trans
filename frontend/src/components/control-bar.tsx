@@ -1,6 +1,8 @@
 import {
+  AUDIO_SOURCE_LABELS,
   LANG_LABELS,
   SOURCE_LANG_LABELS,
+  type AudioSource,
   type Language,
   type SourceLanguage,
 } from "../types";
@@ -9,8 +11,11 @@ interface ControlBarProps {
   isConnected: boolean;
   sourceLang: SourceLanguage;
   targetLang: Language;
+  audioSource: AudioSource;
+  isRecording: boolean;
   onSourceLangChange: (lang: SourceLanguage) => void;
   onLangChange: (lang: Language) => void;
+  onAudioSourceChange: (source: AudioSource) => void;
   onClear: () => void;
   onExport?: () => void;
 }
@@ -19,8 +24,11 @@ export function ControlBar({
   isConnected,
   sourceLang,
   targetLang,
+  audioSource,
+  isRecording,
   onSourceLangChange,
   onLangChange,
+  onAudioSourceChange,
   onClear,
   onExport,
 }: ControlBarProps) {
@@ -28,6 +36,24 @@ export function ControlBar({
     <header className="shrink-0 bg-gray-950 flex items-center justify-between px-4 py-3 border-b border-gray-800">
       <div className="flex items-center gap-3">
         <span className="text-sm font-semibold text-white tracking-tight mr-1">Meeting Trans</span>
+
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-500">Input</span>
+          <select
+            value={audioSource}
+            onChange={(e) => onAudioSourceChange(e.target.value as AudioSource)}
+            disabled={isRecording}
+            className="bg-gray-800 text-white border border-gray-700 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {(Object.entries(AUDIO_SOURCE_LABELS) as [AudioSource, string][]).map(
+              ([code, label]) => (
+                <option key={code} value={code}>{label}</option>
+              ),
+            )}
+          </select>
+        </div>
+
+        <span className="text-gray-600">|</span>
 
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-gray-500">From</span>

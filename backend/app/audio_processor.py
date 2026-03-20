@@ -45,6 +45,8 @@ class AudioBuffer:
         self._silence_count = 0
         # Timestamp of last interim emission
         self._last_interim_time = 0.0
+        # Stable timestamp for the current speech segment (ms since epoch)
+        self._segment_ts = 0
 
         self._vad_model = None
 
@@ -79,9 +81,10 @@ class AudioBuffer:
     def get_speech_segment(self):
         """Check buffer for a complete or partial speech segment.
 
-        Returns (tensor, is_final):
+        Returns (tensor, is_final, segment_ts):
           - is_final=True: silence boundary or force-cut, buffer cleared
           - is_final=False: interim partial segment, buffer kept
+          - segment_ts: stable ms timestamp for this speech segment
           - None: nothing to emit yet
         """
         if len(self._pcm) < VAD_WINDOW_SAMPLES:
@@ -97,6 +100,7 @@ class AudioBuffer:
                 if self._speech_start < 0:
                     self._speech_start = max(0, len(self._pcm) - len(recent))
                     self._last_interim_time = time.monotonic()
+                    self._segment_ts = int(time.time() * 1000)
                     logger.debug("[VAD] speech started")
                 self._silence_count = 0
             else:
@@ -114,7 +118,8 @@ class AudioBuffer:
                 f"[VAD] force-cut at {speech_len / SAMPLE_RATE:.1f}s "
                 f"(max {self._max_segment_s}s)"
             )
-            return (self._extract_segment(), True)
+            seg_ts = self._segment_ts
+            return (self._extract_segment(), True, seg_ts)
 
         # Silence after speech — natural boundary
         if self._silence_count >= self._silence_samples:
@@ -124,7 +129,8 @@ class AudioBuffer:
                     f"[VAD] segment ready: {actual_speech / SAMPLE_RATE:.2f}s speech "
                     f"+ {self._silence_count / SAMPLE_RATE:.2f}s silence"
                 )
-                return (self._extract_segment(), True)
+                seg_ts = self._segment_ts
+                return (self._extract_segment(), True, seg_ts)
             else:
                 logger.debug(
                     f"[VAD] discarding short utterance: "
@@ -147,7 +153,7 @@ class AudioBuffer:
             logger.debug(
                 f"[VAD] interim segment: {len(audio) / SAMPLE_RATE:.2f}s"
             )
-            return (tensor, False)
+            return (tensor, False, self._segment_ts)
 
         return None
 
@@ -160,6 +166,7 @@ class AudioBuffer:
         self._speech_start = -1
         self._silence_count = 0
         self._last_interim_time = 0.0
+        self._segment_ts = 0
 
         tensor = torch.from_numpy(audio.copy())
         logger.info(
@@ -175,6 +182,7 @@ class AudioBuffer:
         self._speech_start = -1
         self._silence_count = 0
         self._last_interim_time = 0.0
+        self._segment_ts = 0
 
     def flush(self):
         """Force-emit any remaining speech (called on recording stop)."""
@@ -191,4 +199,5 @@ class AudioBuffer:
             self._silence_count = 0
             return None
 
-        return (self._extract_segment(), True)
+        seg_ts = self._segment_ts
+        return (self._extract_segment(), True, seg_ts)

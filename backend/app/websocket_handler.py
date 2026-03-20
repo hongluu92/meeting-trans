@@ -1,6 +1,5 @@
 import json
 import logging
-import time
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -42,8 +41,8 @@ async def handle_websocket(ws: WebSocket):
                     if msg.get("action") == "stop":
                         result = buffer.flush()
                         if result is not None:
-                            audio, is_final = result
-                            await _process_audio(ws, audio, source_lang, target_lang, is_final)
+                            audio, is_final, seg_ts = result
+                            await _process_audio(ws, audio, source_lang, target_lang, is_final, seg_ts)
                     continue
                 except json.JSONDecodeError:
                     pass
@@ -60,8 +59,8 @@ async def handle_websocket(ws: WebSocket):
                 # Check if VAD detected a complete or partial speech segment
                 result = buffer.get_speech_segment()
                 if result is not None:
-                    audio, is_final = result
-                    await _process_audio(ws, audio, source_lang, target_lang, is_final)
+                    audio, is_final, seg_ts = result
+                    await _process_audio(ws, audio, source_lang, target_lang, is_final, seg_ts)
 
     except WebSocketDisconnect:
         pass
@@ -75,10 +74,11 @@ async def _process_audio(
     source_lang: str,
     target_lang: str,
     is_final: bool,
+    segment_ts: int,
 ) -> None:
     """Run STT (+ translation if final) on an audio segment and send results."""
     try:
-        ts = int(time.time() * 1000)
+        ts = segment_ts
 
         # Step 1: STT
         stt = await transcribe_audio(audio, source_lang)
