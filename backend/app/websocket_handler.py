@@ -1,18 +1,19 @@
 import json
 import logging
+import time
 
 from fastapi import WebSocket, WebSocketDisconnect
 
 from .audio_processor import AudioBuffer
-from .translator import LANG_MAP, translate_audio
+from .translator import LANG_MAP, transcribe_audio, translate_text
 
 logger = logging.getLogger(__name__)
 
-MAX_CHUNK_BYTES = 16 * 1024 * 1024  # 16MB max per chunk
+MAX_CHUNK_BYTES = 2 * 1024 * 1024  # 2MB max per binary frame (~8s of float32 16kHz)
 
 
 async def handle_websocket(ws: WebSocket):
-    """Handle a single WebSocket connection for audio translation."""
+    """Handle a single WebSocket connection for streaming audio translation."""
     await ws.accept()
 
     source_lang = ws.query_params.get("source_lang", "auto")
@@ -23,70 +24,116 @@ async def handle_websocket(ws: WebSocket):
         target_lang = "en"
     buffer = AudioBuffer()
 
-    logger.info(f"WebSocket connected, source_lang={source_lang}, target_lang={target_lang}")
-
     try:
         while True:
             data = await ws.receive()
-            logger.debug(f"[WS] raw message keys: {list(data.keys())}")
 
             # Handle text messages (config updates)
             if "text" in data:
-                logger.debug(f"[WS] text message: {data['text'][:200]}")
                 try:
                     msg = json.loads(data["text"])
                     if "source_lang" in msg:
                         new_src = msg["source_lang"]
                         if new_src == "auto" or new_src in LANG_MAP:
                             source_lang = new_src
-                            logger.info(f"Source language changed to {source_lang}")
                     if "target_lang" in msg and msg["target_lang"] in LANG_MAP:
                         target_lang = msg["target_lang"]
-                        logger.info(f"Target language changed to {target_lang}")
+                    # Flush remaining audio on stop signal
+                    if msg.get("action") == "stop":
+                        result = buffer.flush()
+                        if result is not None:
+                            audio, is_final = result
+                            await _process_audio(ws, audio, source_lang, target_lang, is_final)
                     continue
                 except json.JSONDecodeError:
                     pass
 
-            # Handle binary audio data
+            # Handle binary audio data (raw float32 PCM at 16kHz)
             if "bytes" in data:
                 chunk = data["bytes"]
-                logger.info(
-                    f"[WS] received binary chunk: {len(chunk)} bytes, "
-                    f"header={chunk[:4].hex() if len(chunk) >= 4 else 'too short'}"
-                )
                 if len(chunk) > MAX_CHUNK_BYTES:
                     await ws.send_json({"error": "Audio chunk too large"})
                     continue
 
                 buffer.add_chunk(chunk)
 
-                # Process buffered audio
-                audio = buffer.get_audio_and_clear()
-                if audio is None:
-                    logger.info("[WS] audio_processor returned None, skipping")
-                    await ws.send_json({"status": "no_speech"})
-                    continue
-
-                duration_s = audio.shape[0] / 16000
-                logger.info(
-                    f"[WS] audio ready: {audio.shape[0]} samples, "
-                    f"{duration_s:.2f}s, min={audio.min():.4f}, max={audio.max():.4f}"
-                )
-                try:
-                    result = await translate_audio(audio, target_lang, source_lang)
-                    logger.info(
-                        f"[WS] translation result: src={result.get('source_lang')} "
-                        f"tgt={result.get('target_lang')} "
-                        f"src_text='{result.get('source_text', '')[:50]}' "
-                        f"translated='{result.get('translated_text', '')[:50]}' "
-                        f"duration={result.get('duration_ms')}ms"
-                    )
-                    await ws.send_json(result)
-                except Exception as e:
-                    logger.error(f"[WS] translation error: {e}", exc_info=True)
-                    await ws.send_json({"error": "Translation failed. Please try again."})
+                # Check if VAD detected a complete or partial speech segment
+                result = buffer.get_speech_segment()
+                if result is not None:
+                    audio, is_final = result
+                    await _process_audio(ws, audio, source_lang, target_lang, is_final)
 
     except WebSocketDisconnect:
-        logger.info("WebSocket disconnected")
+        pass
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
+
+
+async def _process_audio(
+    ws: WebSocket,
+    audio,
+    source_lang: str,
+    target_lang: str,
+    is_final: bool,
+) -> None:
+    """Run STT (+ translation if final) on an audio segment and send results."""
+    try:
+        ts = int(time.time() * 1000)
+
+        # Step 1: STT
+        stt = await transcribe_audio(audio, source_lang)
+        if stt is None:
+            if is_final:
+                await ws.send_json({"status": "no_speech"})
+            return
+
+        detected_lang = stt["source_lang"]
+        source_text = stt["source_text"]
+
+        # Partial (interim): send STT only, no translation
+        if not is_final:
+            await ws.send_json({
+                "source_lang": detected_lang,
+                "source_text": source_text,
+                "target_lang": target_lang,
+                "translated_text": "",
+                "translating": False,
+                "partial": True,
+                "timestamp": ts,
+            })
+            return
+
+        # Final: send STT then translation
+        needs_translation = detected_lang != target_lang
+        stt_result = {
+            "source_lang": detected_lang,
+            "source_text": source_text,
+            "target_lang": target_lang,
+            "translated_text": "" if needs_translation else source_text,
+            "translating": needs_translation,
+            "partial": False,
+            "timestamp": ts,
+        }
+        await ws.send_json(stt_result)
+
+        # Step 2: Translate (if needed)
+        if needs_translation:
+            translated = await translate_text(source_text, target_lang)
+            await ws.send_json({
+                "source_lang": detected_lang,
+                "source_text": source_text,
+                "target_lang": target_lang,
+                "translated_text": translated,
+                "translating": False,
+                "partial": False,
+                "timestamp": ts,
+            })
+
+    except WebSocketDisconnect:
+        logger.debug("[WS] client disconnected during audio processing")
+    except Exception as e:
+        logger.error(f"[WS] translation error: {e}", exc_info=True)
+        try:
+            await ws.send_json({"error": "Translation failed. Please try again."})
+        except (WebSocketDisconnect, RuntimeError):
+            pass

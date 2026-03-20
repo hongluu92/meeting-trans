@@ -9,6 +9,37 @@ from .model_loader import get_engine, get_mlx_model_path, get_model
 
 logger = logging.getLogger(__name__)
 
+
+def _is_hallucination(text: str) -> bool:
+    """Detect Whisper hallucination patterns (repetitive garbage text)."""
+    text = text.strip()
+    if not text:
+        return False
+
+    # Split into words and check for excessive repetition
+    words = text.split()
+    if len(words) < 3:
+        return False
+
+    # Check if a single word/phrase repeats more than 60% of the time
+    from collections import Counter
+    counts = Counter(words)
+    most_common_word, most_common_count = counts.most_common(1)[0]
+    if most_common_count / len(words) > 0.6 and len(words) >= 4:
+        logger.debug(f"[STT] hallucination detected (repetition): '{text[:80]}...'")
+        return True
+
+    # Check for repeating bigram patterns
+    if len(words) >= 6:
+        bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
+        bigram_counts = Counter(bigrams)
+        top_bigram, top_count = bigram_counts.most_common(1)[0]
+        if top_count / len(bigrams) > 0.5:
+            logger.debug(f"[STT] hallucination detected (bigram): '{text[:80]}...'")
+            return True
+
+    return False
+
 # faster-whisper language codes -> our short codes
 WHISPER_LANG_MAP = {
     "en": "en",
@@ -65,6 +96,9 @@ async def transcribe_audio(
             detected_lang = WHISPER_LANG_MAP.get(info.language, info.language)
 
         if not source_text.strip():
+            return None
+
+        if _is_hallucination(source_text):
             return None
 
         return {"source_text": source_text, "source_lang": detected_lang}
