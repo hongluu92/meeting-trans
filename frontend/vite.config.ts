@@ -13,9 +13,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      "/ws": { target: wsUrl, ws: true },
-      "/api": { target: apiUrl },
-      "/health": { target: apiUrl },
+      "/ws": { target: wsUrl, ws: true, changeOrigin: true },
+      "/api": { target: apiUrl, changeOrigin: true },
+      "/health": { target: apiUrl, changeOrigin: true },
     },
   },
 });
