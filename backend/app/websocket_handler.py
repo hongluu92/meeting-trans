@@ -51,10 +51,7 @@ async def handle_websocket(ws: WebSocket):
             # Handle binary audio data (raw float32 PCM at 16kHz)
             if "bytes" in data:
                 chunk = data["bytes"]
-                import numpy as np
-                raw = np.frombuffer(chunk, dtype=np.float32)
-                rms = np.sqrt(np.mean(raw ** 2)) if len(raw) > 0 else 0
-                logger.info(f"[WS] chunk: {len(chunk)}B, samples={len(raw)}, rms={rms:.6f}, min={raw.min():.4f}, max={raw.max():.4f}")
+                logger.info(f"[WS] chunk: {len(chunk)}B, first16={chunk[:16].hex()}")
                 if len(chunk) > MAX_CHUNK_BYTES:
                     await ws.send_json({"error": "Audio chunk too large"})
                     continue
