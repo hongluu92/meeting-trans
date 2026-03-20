@@ -9,9 +9,11 @@ _CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
 
 _DEFAULTS = {
     "whisper": {
+        "engine": "faster-whisper",
         "model_size": "small",
         "device": "cpu",
         "compute_type": "int8",
+        "mlx_model": "mlx-community/whisper-small",
     },
     "transcription": {
         "beam_size": 1,
@@ -21,11 +23,14 @@ _DEFAULTS = {
     "vad": {
         "threshold": 0.15,
         "min_speech_ms": 250,
+        "silence_duration_ms": 500,
+        "max_segment_s": 15,
+        "interim_interval_s": 0.5,
     },
     "languages": ["en", "ja", "vi"],
 }
 
-_config: dict | None = None
+_config = None
 
 
 def _deep_merge(defaults: dict, overrides: dict) -> dict:

@@ -64,7 +64,7 @@ LANG_MAP = get_lang_map()
 
 async def transcribe_audio(
     audio_tensor, source_lang: str = "auto"
-) -> dict | None:
+):
     """Transcribe audio to text. Returns dict with source_text, source_lang, or None if no speech."""
 
     def _run():

@@ -70,7 +70,7 @@ class AudioBuffer:
             return
         self._pcm = np.concatenate([self._pcm, chunk])
 
-    def get_speech_segment(self) -> tuple[torch.Tensor, bool] | None:
+    def get_speech_segment(self):
         """Check buffer for a complete or partial speech segment.
 
         Returns (tensor, is_final):
@@ -170,7 +170,7 @@ class AudioBuffer:
         self._silence_count = 0
         self._last_interim_time = 0.0
 
-    def flush(self) -> tuple[torch.Tensor, bool] | None:
+    def flush(self):
         """Force-emit any remaining speech (called on recording stop)."""
         if self._speech_start < 0 or len(self._pcm) == 0:
             self._pcm = np.empty(0, dtype=np.float32)
