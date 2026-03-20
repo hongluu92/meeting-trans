@@ -65,6 +65,12 @@ class AudioBuffer:
 
     def add_chunk(self, pcm_bytes: bytes) -> None:
         """Append raw float32 PCM bytes to the rolling buffer."""
+        # Trim trailing bytes so length is a multiple of 4 (float32 size)
+        remainder = len(pcm_bytes) % 4
+        if remainder != 0:
+            pcm_bytes = pcm_bytes[: len(pcm_bytes) - remainder]
+        if len(pcm_bytes) == 0:
+            return
         chunk = np.frombuffer(pcm_bytes, dtype=np.float32)
         if len(chunk) == 0:
             return
