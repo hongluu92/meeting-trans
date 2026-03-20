@@ -52,8 +52,9 @@ export function useWebSocket({ sourceLang, targetLang, onResult }: UseWebSocketO
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    const url = `${protocol}//${host}/ws/translate?target_lang=${targetLangRef.current}&source_lang=${sourceLangRef.current}`;
+    const hostname = window.location.hostname;
+    const apiPort = import.meta.env.VITE_API_PORT || "8000";
+    const url = `${protocol}//${hostname}:${apiPort}/ws/translate?target_lang=${targetLangRef.current}&source_lang=${sourceLangRef.current}`;
 
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -75,8 +76,11 @@ export function useWebSocket({ sourceLang, targetLang, onResult }: UseWebSocketO
           setIsProcessing(false);
           return;
         }
-        setIsProcessing(false);
         onResultRef.current(data as TranslationResult);
+        // Only clear processing when translation is done (or not needed)
+        if (!data.translating) {
+          setIsProcessing(false);
+        }
       } catch {
         console.error("[WS] failed to parse message");
       }
@@ -101,11 +105,18 @@ export function useWebSocket({ sourceLang, targetLang, onResult }: UseWebSocketO
   connectRef.current = connect;
 
   const disconnect = useCallback(() => {
+    // Signal backend to flush remaining audio before closing
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ action: "stop" }));
+    }
     reconnectCountRef.current = MAX_RECONNECT_ATTEMPTS;
-    wsRef.current?.close();
-    wsRef.current = null;
-    setIsConnected(false);
-    setIsProcessing(false);
+    // Small delay to let the stop message send before closing
+    setTimeout(() => {
+      wsRef.current?.close();
+      wsRef.current = null;
+      setIsConnected(false);
+      setIsProcessing(false);
+    }, 100);
   }, []);
 
   const sendAudio = useCallback((blob: Blob) => {

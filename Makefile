@@ -18,7 +18,7 @@ backend:
 	cd backend && .venv/bin/uvicorn app.main:app --reload --host $(API_HOST) --port $(API_PORT)
 
 frontend:
-	cd frontend && VITE_API_URL=$(API_URL) pnpm dev --host
+	cd frontend && VITE_API_URL=$(API_URL) VITE_API_PORT=$(API_PORT) pnpm dev --host
 
 clean:
 	rm -rf backend/.venv frontend/node_modules
