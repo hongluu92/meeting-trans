@@ -6,7 +6,7 @@ Uses SeamlessM4T v2 for STT + language detection + translation in a single model
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.10+
 - Node.js 20+ with pnpm
 - ffmpeg (for audio conversion)
 - 8GB RAM minimum
