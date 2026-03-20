@@ -51,7 +51,6 @@ async def handle_websocket(ws: WebSocket):
             # Handle binary audio data (raw float32 PCM at 16kHz)
             if "bytes" in data:
                 chunk = data["bytes"]
-                logger.info(f"[WS] chunk: {len(chunk)}B, first16={chunk[:16].hex()}")
                 if len(chunk) > MAX_CHUNK_BYTES:
                     await ws.send_json({"error": "Audio chunk too large"})
                     continue
@@ -60,10 +59,8 @@ async def handle_websocket(ws: WebSocket):
 
                 # Check if VAD detected a complete or partial speech segment
                 result = buffer.get_speech_segment()
-                logger.info(f"[WS] VAD result: {result is not None}")
                 if result is not None:
                     audio, is_final = result
-                    logger.info(f"[WS] segment: {len(audio)} samples, is_final={is_final}")
                     await _process_audio(ws, audio, source_lang, target_lang, is_final)
 
     except WebSocketDisconnect:
