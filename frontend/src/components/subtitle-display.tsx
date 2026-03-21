@@ -28,7 +28,7 @@ export function SubtitleDisplay({ entries }: SubtitleDisplayProps) {
       {entries.map((entry, i) => (
         <SubtitleEntry key={`${entry.timestamp}-${i}`} entry={entry} />
       ))}
-      <div ref={bottomRef} />
+      <div ref={bottomRef} className="pb-20" />
     </div>
   );
 }
