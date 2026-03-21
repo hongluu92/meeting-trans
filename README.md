@@ -4,6 +4,8 @@ Local web app: speak into mic → auto-detect EN/JA/VI → translate → bilingu
 
 Uses SeamlessM4T v2 for STT + language detection + translation in a single model.
 
+![Demo](demo.png)
+
 ## Prerequisites
 
 - Python 3.10+
