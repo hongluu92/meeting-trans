@@ -118,7 +118,7 @@ async def _process_audio(
 
         # Step 2: Translate (if needed)
         if needs_translation:
-            translated = await translate_text(source_text, target_lang)
+            translated = await translate_text(source_text, target_lang, source_lang=detected_lang)
             await ws.send_json({
                 "source_lang": detected_lang,
                 "source_text": source_text,

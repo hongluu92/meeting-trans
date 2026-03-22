@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_config
 from .model_loader import get_model_status, load_model
+from .translator import preload_nllb
 from .websocket_handler import handle_websocket
 
 logging.basicConfig(level=logging.WARNING)
@@ -33,6 +34,7 @@ logging.getLogger("uvicorn.access").addFilter(_FilterStatusPoll())
 async def lifespan(app: FastAPI):
     logger.info("Starting model loading in background...")
     asyncio.create_task(asyncio.to_thread(load_model))
+    asyncio.create_task(asyncio.to_thread(preload_nllb))
     yield
 
 

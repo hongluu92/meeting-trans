@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import time
+import threading
 
 import numpy as np
 
@@ -52,6 +52,14 @@ WHISPER_LANG_MAP = {
     "korean": "ko",
 }
 
+# Our short codes -> NLLB FLORES-200 codes
+NLLB_LANG_MAP = {
+    "en": "eng_Latn",
+    "ja": "jpn_Jpan",
+    "vi": "vie_Latn",
+    "ko": "kor_Hang",
+}
+
 
 def get_lang_map() -> dict[str, str]:
     """Build LANG_MAP from config."""
@@ -60,6 +68,52 @@ def get_lang_map() -> dict[str, str]:
 
 # Module-level alias for backward compat (used by websocket_handler)
 LANG_MAP = get_lang_map()
+
+
+# --- NLLB lazy-loaded globals ---
+_nllb_translator = None
+_nllb_tokenizer = None
+_nllb_lock = threading.Lock()
+
+
+def preload_nllb():
+    """Download and load NLLB model at startup. Called from lifespan."""
+    _get_nllb()
+
+
+def _get_nllb():
+    """Lazy-load NLLB translator and tokenizer. Thread-safe, loads once."""
+    global _nllb_translator, _nllb_tokenizer
+    if _nllb_translator is not None:
+        return _nllb_translator, _nllb_tokenizer
+
+    with _nllb_lock:
+        if _nllb_translator is not None:
+            return _nllb_translator, _nllb_tokenizer
+
+        cfg = get_config()["translation"]
+        logger.info(f"[NLLB] Downloading/loading model: {cfg['model']}")
+
+        from huggingface_hub import snapshot_download
+        import ctranslate2
+        import transformers
+
+        model_dir = snapshot_download(cfg["model"])
+
+        _nllb_translator = ctranslate2.Translator(
+            model_dir,
+            device=cfg["device"],
+            compute_type=cfg["compute_type"],
+            inter_threads=cfg["inter_threads"],
+            intra_threads=cfg["intra_threads"],
+        )
+
+        _nllb_tokenizer = transformers.AutoTokenizer.from_pretrained(
+            cfg["tokenizer"]
+        )
+
+        logger.info("[NLLB] Model and tokenizer loaded")
+        return _nllb_translator, _nllb_tokenizer
 
 
 async def transcribe_audio(
@@ -106,16 +160,39 @@ async def transcribe_audio(
     return await asyncio.to_thread(_run)
 
 
-async def translate_text(text: str, target_lang: str) -> str:
-    """Translate text to target language using Google Translate."""
+async def translate_text(text: str, target_lang: str, source_lang: str = "en") -> str:
+    """Translate text using offline NLLB model via CTranslate2."""
 
     def _run():
-        from deep_translator import GoogleTranslator
+        src_code = NLLB_LANG_MAP.get(source_lang)
+        tgt_code = NLLB_LANG_MAP.get(target_lang)
+        if not src_code or not tgt_code:
+            logger.warning(f"[NLLB] Unsupported lang pair: {source_lang}->{target_lang}")
+            return text
 
-        return GoogleTranslator(source="auto", target=target_lang).translate(text)
+        translator, tokenizer = _get_nllb()
+        cfg = get_config()["translation"]
+
+        # Set source language (stateful on tokenizer)
+        tokenizer.src_lang = src_code
+        tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(text))
+
+        results = translator.translate_batch(
+            [tokens],
+            target_prefix=[[tgt_code]],
+            max_decoding_length=cfg["max_decoding_length"],
+            beam_size=cfg["beam_size"],
+        )
+
+        # Skip first token (target lang tag)
+        output_tokens = results[0].hypotheses[0][1:]
+        return tokenizer.decode(
+            tokenizer.convert_tokens_to_ids(output_tokens),
+            skip_special_tokens=True,
+        )
 
     try:
         return await asyncio.to_thread(_run)
     except Exception as e:
-        logger.error(f"[Translator] translation failed: {e}")
+        logger.error(f"[NLLB] Translation failed: {e}")
         return text

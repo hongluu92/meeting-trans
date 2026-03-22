@@ -27,6 +27,16 @@ _DEFAULTS = {
         "max_segment_s": 15,
         "interim_interval_s": 0.5,
     },
+    "translation": {
+        "model": "OpenNMT/nllb-200-distilled-1.3B-ct2-int8",
+        "tokenizer": "facebook/nllb-200-distilled-1.3B",
+        "device": "cpu",
+        "compute_type": "int8",
+        "inter_threads": 1,
+        "intra_threads": 4,
+        "beam_size": 2,
+        "max_decoding_length": 256,
+    },
     "languages": ["en", "ja", "vi"],
 }
 
