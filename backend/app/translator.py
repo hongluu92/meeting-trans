@@ -11,29 +11,42 @@ logger = logging.getLogger(__name__)
 
 
 def _is_hallucination(text: str) -> bool:
-    """Detect Whisper hallucination patterns (repetitive garbage text)."""
+    """Detect Whisper hallucination patterns (repetitive garbage text).
+
+    Handles both space-separated languages (EN, VI) and CJK languages (JA, KO)
+    where words are not separated by spaces.
+    """
+    import re
+    from collections import Counter
+
     text = text.strip()
     if not text:
         return False
 
-    # Split into words and check for excessive repetition
-    words = text.split()
-    if len(words) < 3:
-        return False
+    # --- CJK substring repetition (Japanese, Korean, Chinese) ---
+    # Find shortest repeating substring that covers most of the text
+    # e.g. "ちょっとちょっとちょっと" → pattern "ちょっと" repeats 3x
+    for pat_len in range(1, min(20, len(text) // 2 + 1)):
+        pattern = text[:pat_len]
+        count = text.count(pattern)
+        if count >= 4 and (count * pat_len) / len(text) > 0.5:
+            logger.debug(f"[STT] hallucination detected (substring repeat): '{text[:80]}...'")
+            return True
 
-    # Check if a single word/phrase repeats more than 60% of the time
-    from collections import Counter
-    counts = Counter(words)
-    most_common_word, most_common_count = counts.most_common(1)[0]
-    if most_common_count / len(words) > 0.6 and len(words) >= 4:
-        logger.debug(f"[STT] hallucination detected (repetition): '{text[:80]}...'")
-        return True
+    # --- Space-separated word repetition (EN, VI, etc.) ---
+    words = text.split()
+    if len(words) >= 4:
+        counts = Counter(words)
+        _, most_common_count = counts.most_common(1)[0]
+        if most_common_count / len(words) > 0.6:
+            logger.debug(f"[STT] hallucination detected (word repeat): '{text[:80]}...'")
+            return True
 
     # Check for repeating bigram patterns
     if len(words) >= 6:
         bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
         bigram_counts = Counter(bigrams)
-        top_bigram, top_count = bigram_counts.most_common(1)[0]
+        _, top_count = bigram_counts.most_common(1)[0]
         if top_count / len(bigrams) > 0.5:
             logger.debug(f"[STT] hallucination detected (bigram): '{text[:80]}...'")
             return True
