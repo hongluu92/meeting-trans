@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 
@@ -116,24 +117,42 @@ async def _process_audio(
         }
         await ws.send_json(stt_result)
 
-        # Step 2: Translate (if needed)
+        # Step 2: Translate in background (don't block next STT)
         if needs_translation:
-            translated = await translate_text(source_text, target_lang, source_lang=detected_lang)
-            await ws.send_json({
-                "source_lang": detected_lang,
-                "source_text": source_text,
-                "target_lang": target_lang,
-                "translated_text": translated,
-                "translating": False,
-                "partial": False,
-                "timestamp": ts,
-            })
+            asyncio.create_task(
+                _translate_and_send(ws, source_text, detected_lang, target_lang, ts)
+            )
 
     except WebSocketDisconnect:
         logger.debug("[WS] client disconnected during audio processing")
     except Exception as e:
-        logger.error(f"[WS] translation error: {e}", exc_info=True)
+        logger.error(f"[WS] STT error: {e}", exc_info=True)
         try:
-            await ws.send_json({"error": "Translation failed. Please try again."})
+            await ws.send_json({"error": "Processing failed. Please try again."})
         except (WebSocketDisconnect, RuntimeError):
             pass
+
+
+async def _translate_and_send(
+    ws: WebSocket,
+    source_text: str,
+    source_lang: str,
+    target_lang: str,
+    timestamp: int,
+) -> None:
+    """Run translation in background and send result. Does not block STT loop."""
+    try:
+        translated = await translate_text(source_text, target_lang, source_lang=source_lang)
+        await ws.send_json({
+            "source_lang": source_lang,
+            "source_text": source_text,
+            "target_lang": target_lang,
+            "translated_text": translated,
+            "translating": False,
+            "partial": False,
+            "timestamp": timestamp,
+        })
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    except Exception as e:
+        logger.error(f"[WS] translation error: {e}", exc_info=True)

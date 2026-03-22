@@ -30,11 +30,16 @@ class _FilterStatusPoll(logging.Filter):
 logging.getLogger("uvicorn.access").addFilter(_FilterStatusPoll())
 
 
+async def _load_all_models():
+    """Load Whisper first, then NLLB sequentially to avoid Metal GPU conflicts."""
+    await asyncio.to_thread(load_model)
+    await asyncio.to_thread(preload_nllb)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting model loading in background...")
-    asyncio.create_task(asyncio.to_thread(load_model))
-    asyncio.create_task(asyncio.to_thread(preload_nllb))
+    asyncio.create_task(_load_all_models())
     yield
 
 
