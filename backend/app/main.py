@@ -10,7 +10,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_config
-from .model_loader import get_model_status, load_model
+from .model_loader import get_model_status, load_model, set_loading_step
 from .translator import preload_nllb
 from .websocket_handler import handle_websocket
 
@@ -32,8 +32,11 @@ logging.getLogger("uvicorn.access").addFilter(_FilterStatusPoll())
 
 async def _load_all_models():
     """Load Whisper first, then NLLB sequentially to avoid Metal GPU conflicts."""
+    set_loading_step("Loading Whisper STT model... (1/2)")
     await asyncio.to_thread(load_model)
+    set_loading_step("Loading NLLB translation model... (2/2)")
     await asyncio.to_thread(preload_nllb)
+    set_loading_step("")
 
 
 @asynccontextmanager

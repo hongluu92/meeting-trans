@@ -16,6 +16,7 @@ function AppInner() {
   const [audioSource, setAudioSource] = useState<AudioSource>("mic");
   const [modelReady, setModelReady] = useState(false);
   const [modelStatus, setModelStatus] = useState("Checking model status...");
+  const [loadingStep, setLoadingStep] = useState("");
 
   const { entries, addEntry, clearEntries } = useSubtitles();
   const ws = useWebSocket({ sourceLang, targetLang, onResult: addEntry });
@@ -40,9 +41,10 @@ function AppInner() {
             setModelReady(true);
             return;
           }
+          setLoadingStep(data.loading_step || "");
           setModelStatus(
             data.model_loading
-              ? "Loading model... this may take a minute"
+              ? "This may take a minute on first run"
               : "Waiting for backend...",
           );
         } catch {
@@ -81,7 +83,7 @@ function AppInner() {
   }, [toggleRecording]);
 
   if (!modelReady) {
-    return <LoadingScreen status={modelStatus} />;
+    return <LoadingScreen status={modelStatus} step={loadingStep} />;
   }
 
   return (

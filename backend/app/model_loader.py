@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 _model = None
 _model_loading = False
 _model_loaded = False
+_loading_step = ""  # current loading step description
 _lock = threading.Lock()
 
 _engine = None
@@ -32,10 +33,16 @@ def get_mlx_model_path() -> str:
     return _mlx_model_path
 
 
+def set_loading_step(step: str):
+    global _loading_step
+    _loading_step = step
+
+
 def get_model_status() -> dict:
     return {
         "model_loaded": _model_loaded,
         "model_loading": _model_loading,
+        "loading_step": _loading_step,
     }
 
 
