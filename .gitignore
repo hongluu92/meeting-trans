@@ -23,3 +23,9 @@ frontend/dist/
 # Models cache
 *.pt
 *.bin
+backend/models/
+
+# Tauri build artifacts
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+frontend/src-tauri/swift-helper/capture-audio
