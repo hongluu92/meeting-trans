@@ -21,9 +21,11 @@ interface ControlBarProps {
   onPopOut?: () => void;
 }
 
-function IconMic() {
+/* ── Icons ── */
+
+function IconMic({ className = "w-3.5 h-3.5" }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
       <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
       <line x1="12" x2="12" y1="19" y2="22" />
@@ -31,9 +33,9 @@ function IconMic() {
   );
 }
 
-function IconMonitor() {
+function IconMonitor({ className = "w-3.5 h-3.5" }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className}>
       <rect width="20" height="14" x="2" y="3" rx="2" />
       <line x1="8" x2="16" y1="21" y2="21" />
       <line x1="12" x2="12" y1="17" y2="21" />
@@ -70,14 +72,82 @@ function IconPopOut() {
   );
 }
 
-const selectClass =
-  "bg-transparent text-[var(--text-secondary)] border border-[var(--border)] rounded-lg px-2.5 py-1 text-xs cursor-pointer " +
-  "focus:outline-none focus:border-[var(--accent)] hover:border-[var(--text-muted)] " +
-  "disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150";
+/* ── Segmented toggle for audio source (mic / system) ── */
+
+function AudioSourceToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: AudioSource;
+  onChange: (v: AudioSource) => void;
+  disabled: boolean;
+}) {
+  const options: { key: AudioSource; icon: React.ReactNode; label: string }[] = [
+    { key: "mic", icon: <IconMic className="w-3 h-3" />, label: "Mic" },
+    { key: "system", icon: <IconMonitor className="w-3 h-3" />, label: "System" },
+  ];
+
+  return (
+    <div className={`flex items-center bg-[var(--bg-secondary)] rounded-lg p-0.5 ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
+      {options.map((opt) => (
+        <button
+          key={opt.key}
+          onClick={() => onChange(opt.key)}
+          disabled={disabled}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-all duration-150 ${
+            value === opt.key
+              ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm"
+              : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+          }`}
+        >
+          {opt.icon}
+          <span>{opt.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ── Pill selector for languages ── */
+
+function LangPills<T extends string>({
+  value,
+  onChange,
+  options,
+  title,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: Record<string, string>;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center gap-0.5" title={title}>
+      {Object.entries(options).map(([code, label]) => (
+        <button
+          key={code}
+          onClick={() => onChange(code as T)}
+          className={`px-2 py-0.5 rounded-md text-[11px] font-medium cursor-pointer transition-all duration-150 ${
+            value === code
+              ? "bg-[var(--accent-dim)]/20 text-[var(--accent)] border border-[var(--accent-dim)]/30"
+              : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] border border-transparent"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ── Action button ── */
 
 const btnClass =
   "text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1.5 rounded-lg cursor-pointer " +
   "hover:bg-[var(--bg-elevated)] transition-colors duration-150";
+
+/* ── Main Control Bar ── */
 
 export function ControlBar({
   isConnected,
@@ -93,66 +163,47 @@ export function ControlBar({
   onPopOut,
 }: ControlBarProps) {
   return (
-    <header className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)]">
-      {/* Left: controls */}
-      <div className="flex items-center gap-2.5 min-w-0">
+    <header className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">
+      {/* Left: audio + language controls */}
+      <div className="flex items-center gap-3 min-w-0">
         {/* Connection dot */}
         <span
           className={`w-1.5 h-1.5 rounded-full shrink-0 ${isConnected ? "bg-emerald-500" : "bg-[var(--red)]"}`}
           title={isConnected ? "Connected" : "Disconnected"}
         />
 
-        {/* Audio source */}
+        {/* Audio source toggle */}
         {onAudioSourceChange && (
-          <div className="flex items-center gap-1.5 shrink-0 text-[var(--text-muted)]">
-            {audioSource === "mic" ? <IconMic /> : <IconMonitor />}
-            <select
-              value={audioSource}
-              onChange={(e) => onAudioSourceChange(e.target.value as AudioSource)}
-              disabled={isRecording}
-              className={selectClass}
-            >
-              {(Object.entries(AUDIO_SOURCE_LABELS) as [AudioSource, string][]).map(
-                ([code, label]) => (
-                  <option key={code} value={code}>{label}</option>
-                ),
-              )}
-            </select>
-          </div>
+          <AudioSourceToggle
+            value={audioSource}
+            onChange={onAudioSourceChange}
+            disabled={isRecording}
+          />
         )}
 
-        {/* Language: from → to */}
-        <div className="flex items-center gap-1.5">
-          <select
-            value={sourceLang}
-            onChange={(e) => onSourceLangChange(e.target.value as SourceLanguage)}
-            className={selectClass}
-            title="Source language"
-          >
-            {(Object.entries(SOURCE_LANG_LABELS) as [SourceLanguage, string][]).map(
-              ([code, label]) => (
-                <option key={code} value={code}>{label}</option>
-              ),
-            )}
-          </select>
+        {/* Divider */}
+        <div className="w-px h-4 bg-[var(--border)]" />
 
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0">
-            <path d="M5 12h14m-4-4 4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+        {/* Source language pills */}
+        <LangPills
+          value={sourceLang}
+          onChange={onSourceLangChange}
+          options={SOURCE_LANG_LABELS}
+          title="Source language"
+        />
 
-          <select
-            value={targetLang}
-            onChange={(e) => onLangChange(e.target.value as Language)}
-            className={selectClass}
-            title="Target language"
-          >
-            {(Object.entries(LANG_LABELS) as [Language, string][]).map(
-              ([code, label]) => (
-                <option key={code} value={code}>{label}</option>
-              ),
-            )}
-          </select>
-        </div>
+        {/* Arrow */}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3 h-3 text-[var(--text-muted)] shrink-0">
+          <path d="M5 12h14m-4-4 4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+
+        {/* Target language pills */}
+        <LangPills
+          value={targetLang}
+          onChange={onLangChange}
+          options={LANG_LABELS}
+          title="Target language"
+        />
       </div>
 
       {/* Right: actions */}
