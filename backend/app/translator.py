@@ -152,9 +152,9 @@ async def transcribe_audio(
         if engine == "mlx":
             import mlx_whisper
 
+            # mlx-whisper only supports greedy decoding (beam_size=1)
             mlx_kwargs = {
                 "path_or_hf_repo": get_mlx_model_path(),
-                "beam_size": beam_size,
                 "best_of": best_of,
                 "compression_ratio_threshold": cfg.get("compression_ratio_threshold", 2.4),
                 "no_speech_threshold": cfg.get("no_speech_threshold", 0.6),
