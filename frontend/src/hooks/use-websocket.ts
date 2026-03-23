@@ -18,7 +18,7 @@ export function useWebSocket({ sourceLang, targetLang, onResult }: UseWebSocketO
   const sourceLangRef = useRef(sourceLang);
   const targetLangRef = useRef(targetLang);
   const onResultRef = useRef(onResult);
-  const connectRef = useRef<() => void>();
+  const connectRef = useRef<() => void>(undefined);
 
   // Keep refs current
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { CaptionOverlay } from "./components/caption-overlay";
 import { ControlBar } from "./components/control-bar";
 import { ErrorBoundary } from "./components/error-boundary";
 import { LoadingScreen } from "./components/loading-screen";
@@ -82,6 +83,20 @@ function AppInner() {
     return () => window.removeEventListener("keydown", handler);
   }, [toggleRecording]);
 
+  const popOutCaptions = useCallback(async () => {
+    // Use Tauri native always-on-top window when available, fallback to browser popup
+    if ("__TAURI_INTERNALS__" in window) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("open_caption_overlay");
+    } else {
+      window.open(
+        "/caption",
+        "live-captions",
+        "width=480,height=320,menubar=no,toolbar=no,location=no,status=no",
+      );
+    }
+  }, []);
+
   if (!modelReady) {
     return <LoadingScreen status={modelStatus} step={loadingStep} />;
   }
@@ -101,6 +116,7 @@ function AppInner() {
         onExport={
           entries.length > 0 ? () => downloadTranscript(entries) : undefined
         }
+        onPopOut={popOutCaptions}
       />
       <SubtitleDisplay entries={entries} />
       <RecordButton
@@ -115,6 +131,11 @@ function AppInner() {
 }
 
 function App() {
+  // Render caption-only overlay for popup window
+  if (window.location.pathname === "/caption") {
+    return <CaptionOverlay />;
+  }
+
   return (
     <ErrorBoundary>
       <AppInner />

@@ -18,6 +18,7 @@ interface ControlBarProps {
   onAudioSourceChange: (source: AudioSource) => void;
   onClear: () => void;
   onExport?: () => void;
+  onPopOut?: () => void;
 }
 
 /** Mic icon */
@@ -53,6 +54,17 @@ function DownloadIcon() {
   );
 }
 
+/** Pop-out / external window icon */
+function PopOutIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" x2="21" y1="14" y2="3" />
+    </svg>
+  );
+}
+
 /** Trash icon for clear */
 function TrashIcon() {
   return (
@@ -80,6 +92,7 @@ export function ControlBar({
   onAudioSourceChange,
   onClear,
   onExport,
+  onPopOut,
 }: ControlBarProps) {
   return (
     <header className="shrink-0 bg-gray-950 flex items-center justify-between px-3 py-2 border-b border-gray-800 gap-2">
@@ -140,6 +153,11 @@ export function ControlBar({
 
       {/* Right: action buttons */}
       <div className="flex items-center gap-1.5 shrink-0">
+        {onPopOut && (
+          <button onClick={onPopOut} className={iconBtnClass} title="Pop out captions">
+            <PopOutIcon />
+          </button>
+        )}
         {onExport && (
           <button onClick={onExport} className={iconBtnClass} title="Export transcript">
             <DownloadIcon />

@@ -87,10 +87,9 @@ export function useAudioCapture({
       workletNode.port.onmessage = (event: MessageEvent) => {
         const { pcm } = event.data as { pcm: Float32Array };
         if (pcm && pcm.length > 0) {
-          const blob = new Blob(
-            [pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + pcm.byteLength)],
-            { type: "application/octet-stream" },
-          );
+          const buf = new ArrayBuffer(pcm.byteLength);
+          new Uint8Array(buf).set(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+          const blob = new Blob([buf], { type: "application/octet-stream" });
           onChunkRef.current(blob);
         }
       };
