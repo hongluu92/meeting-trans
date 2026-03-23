@@ -34,8 +34,8 @@ export const SOURCE_LANG_LABELS: Record<SourceLanguage, string> = {
 };
 
 export const LANG_COLORS: Record<string, string> = {
-  en: "text-blue-400",
-  ja: "text-red-400",
-  vi: "text-green-400",
-  ko: "text-purple-400",
+  en: "text-sky-400",
+  ja: "text-rose-400",
+  vi: "text-emerald-400",
+  ko: "text-violet-400",
 };

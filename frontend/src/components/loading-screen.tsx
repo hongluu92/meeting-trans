@@ -5,12 +5,22 @@ interface LoadingScreenProps {
 
 export function LoadingScreen({ status, step }: LoadingScreenProps) {
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center gap-4">
-      <div className="w-12 h-12 border-4 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
-      <h2 className="text-xl font-medium">Loading models</h2>
-      {step && <p className="text-blue-400 text-sm">{step}</p>}
-      <p className="text-gray-400 text-sm">{status}</p>
-      <p className="text-gray-600 text-xs">First run downloads ~1.5GB of models</p>
+    <div className="min-h-screen bg-[var(--bg-primary)] text-white flex flex-col items-center justify-center gap-5">
+      {/* Minimal spinner */}
+      <div className="relative w-10 h-10">
+        <div className="absolute inset-0 border-2 border-[var(--border)] rounded-full" />
+        <div className="absolute inset-0 border-2 border-transparent border-t-[var(--accent)] rounded-full animate-spin" />
+      </div>
+
+      <div className="text-center space-y-2">
+        <h2 className="text-base font-medium text-[var(--text-primary)]">Loading models</h2>
+        {step && <p className="text-[var(--accent)] text-sm">{step}</p>}
+        <p className="text-[var(--text-secondary)] text-sm">{status}</p>
+      </div>
+
+      <p className="text-[var(--text-muted)] text-xs mt-4">
+        First run downloads ~1.5GB of models
+      </p>
     </div>
   );
 }

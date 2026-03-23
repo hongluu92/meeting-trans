@@ -125,7 +125,7 @@ function AppInner() {
   }
 
   return (
-    <div className="h-screen bg-gray-950 text-white flex flex-col overflow-hidden">
+    <div className="h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col overflow-hidden">
       <ControlBar
         isConnected={ws.isConnected}
         sourceLang={sourceLang}

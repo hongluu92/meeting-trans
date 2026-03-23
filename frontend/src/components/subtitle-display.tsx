@@ -16,15 +16,20 @@ export function SubtitleDisplay({ entries }: SubtitleDisplayProps) {
   if (entries.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-gray-500 text-lg">
-          Press the mic button to start translating
-        </p>
+        <div className="text-center space-y-2">
+          <p className="text-[var(--text-muted)] text-base">
+            Press the mic button to start
+          </p>
+          <p className="text-[var(--text-muted)] text-xs opacity-50">
+            or press Space
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto py-2 divide-y divide-gray-800/50">
+    <div className="flex-1 overflow-y-auto divide-y divide-[var(--border)]/30">
       {entries.map((entry, i) => (
         <SubtitleEntry key={`${entry.timestamp}-${i}`} entry={entry} />
       ))}

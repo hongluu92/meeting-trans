@@ -14,33 +14,40 @@ export function RecordButton({
   error,
 }: RecordButtonProps) {
   return (
-    <footer className="shrink-0 bg-gray-950 flex items-center justify-center gap-4 px-4 py-3 border-t border-gray-800">
-      <div className="flex items-center gap-2 text-xs text-gray-600 w-28 justify-end">
-        {error && <span className="text-red-400 truncate">{error}</span>}
-        {!error && isProcessing && <span className="text-gray-500">Processing...</span>}
+    <footer className="shrink-0 flex items-center justify-center gap-5 px-4 py-4 border-t border-[var(--border)]">
+      {/* Left status */}
+      <div className="flex items-center gap-2 text-xs w-32 justify-end">
+        {error && <span className="text-[var(--red)] truncate">{error}</span>}
+        {!error && isProcessing && (
+          <span className="text-[var(--text-muted)]">Processing...</span>
+        )}
       </div>
 
+      {/* Record button */}
       <button
         onClick={onToggle}
-        className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+        className={`relative w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ${
           isRecording
-            ? "bg-red-600 hover:bg-red-700 animate-pulse"
-            : "bg-gray-700 hover:bg-gray-600"
+            ? "bg-[var(--red)] animate-pulse-ring"
+            : "bg-[var(--bg-elevated)] hover:bg-zinc-700"
         }`}
         aria-label={isRecording ? "Stop recording" : "Start recording"}
       >
         {isRecording ? (
           <div className="w-5 h-5 bg-white rounded-sm" />
         ) : (
-          <div className="w-5 h-5 bg-red-400 rounded-full" />
+          <div className="w-5 h-5 bg-[var(--red)] rounded-full" />
         )}
       </button>
 
-      <div className="flex items-center gap-2 text-xs w-28">
+      {/* Right status */}
+      <div className="flex items-center gap-2 text-xs w-32">
         <div
-          className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+            isConnected ? "bg-emerald-500" : "bg-[var(--red)]"
+          }`}
         />
-        <span className="text-gray-600">
+        <span className="text-[var(--text-muted)]">
           {isRecording ? "Recording" : "Space to start"}
         </span>
       </div>

@@ -6,8 +6,7 @@ interface SubtitleEntryProps {
 }
 
 export function SubtitleEntry({ entry }: SubtitleEntryProps) {
-  const sourceColor = LANG_COLORS[entry.source_lang] ?? "text-gray-400";
-  const targetColor = LANG_COLORS[entry.target_lang] ?? "text-gray-400";
+  const sourceColor = LANG_COLORS[entry.source_lang] ?? "text-[var(--text-muted)]";
   const time = new Date(entry.timestamp).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -15,31 +14,33 @@ export function SubtitleEntry({ entry }: SubtitleEntryProps) {
   });
 
   return (
-    <div className={`px-4 py-2 ${entry.partial ? "opacity-60" : "animate-fade-in"}`}>
+    <div className={`group px-5 py-3 ${entry.partial ? "opacity-50" : "animate-fade-in"}`}>
       <div className="flex items-start gap-3">
-        <span className="text-xs text-gray-600 pt-1 shrink-0">{time}</span>
-        <div className="flex-1 min-w-0">
+        {/* Timestamp */}
+        <span className="text-[10px] text-[var(--text-muted)] pt-1.5 shrink-0 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          {time}
+        </span>
+
+        <div className="flex-1 min-w-0 space-y-0.5">
+          {/* Source text */}
           <div className="flex items-baseline gap-2">
-            <span
-              className={`text-[10px] font-medium uppercase tracking-wider shrink-0 ${sourceColor}`}
-            >
+            <span className={`text-[9px] font-semibold uppercase tracking-widest shrink-0 ${sourceColor}`}>
               {entry.source_lang}
             </span>
-            <span className={`text-lg leading-snug ${entry.partial ? "text-gray-400 italic" : "text-white"}`}>
+            <span className={`text-[15px] leading-relaxed ${
+              entry.partial ? "text-[var(--text-secondary)] italic" : "text-[var(--text-primary)]"
+            }`}>
               {entry.source_text}{entry.partial ? "..." : ""}
             </span>
           </div>
+
+          {/* Translation */}
           {(entry.translated_text || entry.translating) && (
-            <div className="flex items-baseline gap-2 mt-0.5">
-              <span
-                className={`text-[10px] font-medium uppercase tracking-wider shrink-0 ${targetColor}`}
-              >
-                {entry.target_lang}
-              </span>
+            <div className="pl-[calc(2ch+0.5rem)]">
               {entry.translating ? (
-                <span className="text-gray-500 text-sm italic">...</span>
+                <span className="text-[var(--text-muted)] text-sm italic">translating...</span>
               ) : (
-                <span className="text-gray-400 text-sm leading-snug">
+                <span className="text-[var(--text-secondary)] text-sm leading-relaxed">
                   {entry.translated_text}
                 </span>
               )}
