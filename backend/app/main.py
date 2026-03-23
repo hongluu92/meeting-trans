@@ -3,7 +3,7 @@ import logging
 import warnings
 from contextlib import asynccontextmanager
 
-# Suppress semaphore leak warning from torch/silero-vad multiprocessing
+# Suppress semaphore leak warning from multiprocessing (e.g. onnxruntime)
 warnings.filterwarnings("ignore", message="resource_tracker.*semaphore", module="multiprocessing")
 
 from fastapi import FastAPI, WebSocket

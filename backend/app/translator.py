@@ -130,12 +130,12 @@ def _get_nllb():
 
 
 async def transcribe_audio(
-    audio_tensor, source_lang: str = "auto", is_interim: bool = False
+    audio_data, source_lang: str = "auto", is_interim: bool = False
 ):
     """Transcribe audio to text. Returns dict with source_text, source_lang, or None if no speech.
 
     Args:
-        audio_tensor: Audio data as torch tensor.
+        audio_data: Audio data as numpy array (float32).
         source_lang: Language code or "auto" for detection.
         is_interim: If True, use fast greedy decoding (beam_size=1) for partials.
     """
@@ -143,7 +143,7 @@ async def transcribe_audio(
     def _run():
         engine = get_engine()
         cfg = get_config()["transcription"]
-        audio_np = audio_tensor.numpy().astype(np.float32)
+        audio_np = np.asarray(audio_data, dtype=np.float32)
 
         # Use greedy decoding for interim (speed), full beam search for final (quality)
         beam_size = 1 if is_interim else cfg["beam_size"]

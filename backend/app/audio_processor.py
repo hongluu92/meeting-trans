@@ -1,28 +1,30 @@
+"""Streaming audio buffer with VAD-based speech segmentation.
+
+Accepts raw float32 PCM chunks, runs Silero VAD (ONNX) on incoming data,
+and returns complete speech segments when silence is detected after speech.
+Also emits interim (partial) segments periodically while speaking.
+
+State machine: idle -> speaking -> silence_after_speech -> (emit segment) -> idle
+"""
+
 import logging
 import time
 
 import numpy as np
-import torch
 
 from .config import get_config
+from .vad import WINDOW_SAMPLES, SileroVAD
 
 logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
 
-# Silero VAD operates on 512-sample windows at 16kHz (32ms each)
-VAD_WINDOW_SAMPLES = 512
+# Minimum RMS energy to bother running VAD (filters keyboard clicks, silence)
+MIN_RMS_ENERGY = 0.005
 
 
 class AudioBuffer:
-    """Streaming audio buffer with VAD-based speech segmentation.
-
-    Accepts raw float32 PCM chunks, runs silero-vad on incoming data,
-    and returns complete speech segments when silence is detected after speech.
-    Also emits interim (partial) segments every `interim_interval_s` while speaking.
-
-    State machine: idle → speaking → silence_after_speech → (emit segment) → idle
-    """
+    """Streaming audio buffer with VAD-based speech segmentation."""
 
     def __init__(self):
         cfg = get_config()["vad"]
@@ -47,22 +49,37 @@ class AudioBuffer:
         self._last_interim_time = 0.0
         # Stable timestamp for the current speech segment (ms since epoch)
         self._segment_ts = 0
+        # Track how many samples have been VAD-analyzed (avoid re-analysis)
+        self._vad_analyzed_up_to = 0
 
         self._vad_model = None
 
     def _load_vad(self):
         if self._vad_model is None:
-            self._vad_model, _ = torch.hub.load("snakers4/silero-vad", "silero_vad")
-            logger.debug("[VAD] silero-vad model loaded")
+            self._vad_model = SileroVAD()
+            logger.debug("[VAD] Silero VAD ONNX model loaded")
 
-    def _run_vad_on_chunk(self, chunk: np.ndarray) -> list[bool]:
-        """Run VAD on chunk, return per-window speech decisions."""
+    def _run_vad_on_new_data(self) -> list[bool]:
+        """Run VAD only on data that hasn't been analyzed yet. Returns per-window speech decisions."""
         self._load_vad()
+
+        # Start from where we left off, aligned to window boundary
+        start = self._vad_analyzed_up_to
         results = []
-        for i in range(0, len(chunk) - VAD_WINDOW_SAMPLES + 1, VAD_WINDOW_SAMPLES):
-            window = torch.from_numpy(chunk[i : i + VAD_WINDOW_SAMPLES])
-            prob = self._vad_model(window, SAMPLE_RATE).item()
-            results.append(prob >= self._threshold)
+
+        for i in range(start, len(self._pcm) - WINDOW_SAMPLES + 1, WINDOW_SAMPLES):
+            window = self._pcm[i : i + WINDOW_SAMPLES]
+
+            # Energy gate: skip VAD for near-silent windows
+            rms = np.sqrt(np.mean(window ** 2))
+            if rms < MIN_RMS_ENERGY:
+                results.append(False)
+            else:
+                prob = self._vad_model(window)
+                results.append(prob >= self._threshold)
+
+            self._vad_analyzed_up_to = i + WINDOW_SAMPLES
+
         return results
 
     def add_chunk(self, pcm_bytes: bytes) -> None:
@@ -81,31 +98,28 @@ class AudioBuffer:
     def get_speech_segment(self):
         """Check buffer for a complete or partial speech segment.
 
-        Returns (tensor, is_final, segment_ts):
+        Returns (numpy_array, is_final, segment_ts):
           - is_final=True: silence boundary or force-cut, buffer cleared
           - is_final=False: interim partial segment, buffer kept
           - segment_ts: stable ms timestamp for this speech segment
           - None: nothing to emit yet
         """
-        if len(self._pcm) < VAD_WINDOW_SAMPLES:
+        if len(self._pcm) < WINDOW_SAMPLES:
             return None
 
-        # Run VAD on recent tail
-        analyze_start = max(0, len(self._pcm) - VAD_WINDOW_SAMPLES * 20)
-        recent = self._pcm[analyze_start:]
-        vad_decisions = self._run_vad_on_chunk(recent)
+        vad_decisions = self._run_vad_on_new_data()
 
         for is_speech in vad_decisions:
             if is_speech:
                 if self._speech_start < 0:
-                    self._speech_start = max(0, len(self._pcm) - len(recent))
+                    self._speech_start = max(0, len(self._pcm) - WINDOW_SAMPLES * len(vad_decisions))
                     self._last_interim_time = time.monotonic()
                     self._segment_ts = int(time.time() * 1000)
                     logger.debug("[VAD] speech started")
                 self._silence_count = 0
             else:
                 if self._speech_start >= 0:
-                    self._silence_count += VAD_WINDOW_SAMPLES
+                    self._silence_count += WINDOW_SAMPLES
 
         if self._speech_start < 0:
             return None
@@ -149,54 +163,52 @@ class AudioBuffer:
         ):
             self._last_interim_time = now
             audio = self._pcm[self._speech_start : len(self._pcm) - self._silence_count]
-            tensor = torch.from_numpy(audio.copy())
             logger.debug(
                 f"[VAD] interim segment: {len(audio) / SAMPLE_RATE:.2f}s"
             )
-            return (tensor, False, self._segment_ts)
+            return (audio.copy(), False, self._segment_ts)
 
         return None
 
-    def _extract_segment(self) -> torch.Tensor:
+    def _extract_segment(self) -> np.ndarray:
         """Extract speech segment from buffer, trim silence tail, reset state."""
         end = len(self._pcm) - self._silence_count
-        audio = self._pcm[self._speech_start : end]
+        audio = self._pcm[self._speech_start : end].copy()
 
-        self._pcm = np.empty(0, dtype=np.float32)
-        self._speech_start = -1
-        self._silence_count = 0
-        self._last_interim_time = 0.0
-        self._segment_ts = 0
-
-        tensor = torch.from_numpy(audio.copy())
+        rms = np.sqrt(np.mean(audio ** 2))
         logger.info(
             f"[AudioBuffer] segment: {len(audio)} samples, "
             f"{len(audio) / SAMPLE_RATE:.2f}s, "
-            f"rms={tensor.pow(2).mean().sqrt():.6f}"
+            f"rms={rms:.6f}"
         )
-        return tensor
+
+        self._reset_state()
+        return audio
 
     def _discard_segment(self) -> None:
         """Discard current speech region and reset state."""
+        self._reset_state()
+
+    def _reset_state(self) -> None:
+        """Clear buffer and reset all tracking state."""
         self._pcm = np.empty(0, dtype=np.float32)
         self._speech_start = -1
         self._silence_count = 0
         self._last_interim_time = 0.0
         self._segment_ts = 0
+        self._vad_analyzed_up_to = 0
+        if self._vad_model is not None:
+            self._vad_model.reset_states()
 
     def flush(self):
         """Force-emit any remaining speech (called on recording stop)."""
         if self._speech_start < 0 or len(self._pcm) == 0:
-            self._pcm = np.empty(0, dtype=np.float32)
-            self._speech_start = -1
-            self._silence_count = 0
+            self._reset_state()
             return None
 
         actual_speech = len(self._pcm) - self._speech_start - self._silence_count
         if actual_speech < self._min_speech_samples:
-            self._pcm = np.empty(0, dtype=np.float32)
-            self._speech_start = -1
-            self._silence_count = 0
+            self._reset_state()
             return None
 
         seg_ts = self._segment_ts

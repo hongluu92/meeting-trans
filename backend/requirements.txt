@@ -1,8 +1,7 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 websockets>=14.0
-torch>=2.1.0
-torchaudio>=2.1.0
+onnxruntime>=1.17.0
 transformers>=4.40.0
 sentencepiece>=0.2.0
 protobuf>=5.0.0
@@ -11,4 +10,5 @@ pydub>=0.25.1
 pyyaml>=6.0
 ctranslate2>=4.0.0
 huggingface_hub>=0.20.0
+numpy>=1.24.0
 mlx-whisper>=0.4.0  # Apple Silicon only
