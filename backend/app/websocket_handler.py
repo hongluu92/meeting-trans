@@ -81,8 +81,8 @@ async def _process_audio(
     try:
         ts = segment_ts
 
-        # Step 1: STT
-        stt = await transcribe_audio(audio, source_lang)
+        # Step 1: STT (greedy for interims, beam search for finals)
+        stt = await transcribe_audio(audio, source_lang, is_interim=not is_final)
         if stt is None:
             if is_final:
                 await ws.send_json({"status": "no_speech"})

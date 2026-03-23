@@ -130,19 +130,36 @@ def _get_nllb():
 
 
 async def transcribe_audio(
-    audio_tensor, source_lang: str = "auto"
+    audio_tensor, source_lang: str = "auto", is_interim: bool = False
 ):
-    """Transcribe audio to text. Returns dict with source_text, source_lang, or None if no speech."""
+    """Transcribe audio to text. Returns dict with source_text, source_lang, or None if no speech.
+
+    Args:
+        audio_tensor: Audio data as torch tensor.
+        source_lang: Language code or "auto" for detection.
+        is_interim: If True, use fast greedy decoding (beam_size=1) for partials.
+    """
 
     def _run():
         engine = get_engine()
         cfg = get_config()["transcription"]
         audio_np = audio_tensor.numpy().astype(np.float32)
 
+        # Use greedy decoding for interim (speed), full beam search for final (quality)
+        beam_size = 1 if is_interim else cfg["beam_size"]
+        best_of = 1 if is_interim else cfg["best_of"]
+
         if engine == "mlx":
             import mlx_whisper
 
-            mlx_kwargs = {"path_or_hf_repo": get_mlx_model_path()}
+            mlx_kwargs = {
+                "path_or_hf_repo": get_mlx_model_path(),
+                "beam_size": beam_size,
+                "best_of": best_of,
+                "compression_ratio_threshold": cfg.get("compression_ratio_threshold", 2.4),
+                "no_speech_threshold": cfg.get("no_speech_threshold", 0.6),
+                "logprob_threshold": cfg.get("log_prob_threshold", -1.0),
+            }
             if source_lang != "auto":
                 mlx_kwargs["language"] = source_lang
             result = mlx_whisper.transcribe(audio_np, **mlx_kwargs)
@@ -152,9 +169,12 @@ async def transcribe_audio(
         else:
             model = get_model()
             transcribe_kwargs = {
-                "beam_size": cfg["beam_size"],
-                "best_of": cfg["best_of"],
+                "beam_size": beam_size,
+                "best_of": best_of,
                 "vad_filter": cfg["vad_filter"],
+                "no_speech_threshold": cfg.get("no_speech_threshold", 0.6),
+                "compression_ratio_threshold": cfg.get("compression_ratio_threshold", 2.4),
+                "log_prob_threshold": cfg.get("log_prob_threshold", -1.0),
             }
             if source_lang != "auto":
                 transcribe_kwargs["language"] = source_lang

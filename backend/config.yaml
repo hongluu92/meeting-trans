@@ -4,24 +4,27 @@
 # compute_type: int8, float16, float32, int8_float16 (float16/int8_float16 require CUDA)
 whisper:
   engine: "mlx"                   # "faster-whisper" or "mlx"
-  model_size: "base"
+  model_size: "small"
   device: "cpu"
   compute_type: "int8"
-  mlx_model: "mlx-community/whisper-base-mlx"  # HuggingFace repo (mlx engine only)
+  mlx_model: "mlx-community/whisper-small-mlx"  # HuggingFace repo (mlx engine only)
 
 # ── Transcription ────────────────────────────────────────────────
 transcription:
-  beam_size: 1
-  best_of: 1
+  beam_size: 3
+  best_of: 3
   vad_filter: true
+  no_speech_threshold: 0.6              # skip segments with high no-speech probability
+  compression_ratio_threshold: 2.4      # skip segments with abnormal compression (hallucination)
+  log_prob_threshold: -1.0              # skip segments with very low avg log probability
 
 # ── VAD (Voice Activity Detection) ──────────────────────────────
 vad:
   threshold: 0.15
   min_speech_ms: 150
-  silence_duration_ms: 200    # silence after speech triggers segment cut
-  max_segment_s: 15           # force-cut long continuous speech
-  interim_interval_s: 0.5     # send partial STT every N seconds while speaking
+  silence_duration_ms: 500    # silence after speech triggers segment cut
+  max_segment_s: 25           # force-cut long continuous speech
+  interim_interval_s: 1.5     # send partial STT every N seconds while speaking
 
 # ── Translation (NLLB offline) ─────────────────────────────────
 translation:
