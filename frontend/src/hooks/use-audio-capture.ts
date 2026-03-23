@@ -99,8 +99,18 @@ export function useAudioCapture({
 
       setIsRecording(true);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to access audio source";
+      let message = "Failed to access audio source";
+      if (err instanceof DOMException) {
+        if (err.name === "NotAllowedError") {
+          message = "Microphone permission denied. Check System Settings > Privacy > Microphone.";
+        } else if (err.name === "NotFoundError") {
+          message = "No microphone found.";
+        } else {
+          message = err.message || message;
+        }
+      } else if (err instanceof Error && err.message) {
+        message = err.message;
+      }
       setError(message);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

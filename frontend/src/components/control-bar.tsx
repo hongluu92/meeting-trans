@@ -15,7 +15,7 @@ interface ControlBarProps {
   isRecording: boolean;
   onSourceLangChange: (lang: SourceLanguage) => void;
   onLangChange: (lang: Language) => void;
-  onAudioSourceChange: (source: AudioSource) => void;
+  onAudioSourceChange?: (source: AudioSource) => void;
   onClear: () => void;
   onExport?: () => void;
   onPopOut?: () => void;
@@ -105,21 +105,23 @@ export function ControlBar({
         />
 
         {/* Audio source: icon + select */}
-        <div className="flex items-center gap-1 shrink-0" title="Audio input">
-          {audioSource === "mic" ? <MicIcon /> : <MonitorIcon />}
-          <select
-            value={audioSource}
-            onChange={(e) => onAudioSourceChange(e.target.value as AudioSource)}
-            disabled={isRecording}
-            className={selectClass}
-          >
-            {(Object.entries(AUDIO_SOURCE_LABELS) as [AudioSource, string][]).map(
-              ([code, label]) => (
-                <option key={code} value={code}>{label}</option>
-              ),
-            )}
-          </select>
-        </div>
+        {onAudioSourceChange && (
+          <div className="flex items-center gap-1 shrink-0" title="Audio input">
+            {audioSource === "mic" ? <MicIcon /> : <MonitorIcon />}
+            <select
+              value={audioSource}
+              onChange={(e) => onAudioSourceChange(e.target.value as AudioSource)}
+              disabled={isRecording}
+              className={selectClass}
+            >
+              {(Object.entries(AUDIO_SOURCE_LABELS) as [AudioSource, string][]).map(
+                ([code, label]) => (
+                  <option key={code} value={code}>{label}</option>
+                ),
+              )}
+            </select>
+          </div>
+        )}
 
         {/* Language: from → to */}
         <select

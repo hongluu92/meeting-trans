@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.meetingtrans.desktop",
   "build": {
+    "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -28,6 +30,10 @@
     "targets": "all",
     "icon": [
       "icons/icon.png"
-    ]
+    ],
+    "macOS": {
+      "entitlements": null,
+      "infoPlist": "Info.plist"
+    }
   }
 }

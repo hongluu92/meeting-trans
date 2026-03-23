@@ -7,13 +7,17 @@ import { RecordButton } from "./components/record-button";
 import { SubtitleDisplay } from "./components/subtitle-display";
 import { useAudioCapture } from "./hooks/use-audio-capture";
 import { useSubtitles } from "./hooks/use-subtitles";
+import { useSystemAudio } from "./hooks/use-system-audio";
 import { useWebSocket } from "./hooks/use-websocket";
 import type { AudioSource, Language, SourceLanguage } from "./types";
 import { downloadTranscript } from "./utils/export-transcript";
 
+const isTauri = "__TAURI_INTERNALS__" in window;
+
 function AppInner() {
   const [sourceLang, setSourceLang] = useState<SourceLanguage>("auto");
   const [targetLang, setTargetLang] = useState<Language>("vi");
+  // In Tauri: "mic" = browser mic, "system" = native ScreenCaptureKit
   const [audioSource, setAudioSource] = useState<AudioSource>("mic");
   const [modelReady, setModelReady] = useState(false);
   const [modelStatus, setModelStatus] = useState("Checking model status...");
@@ -27,7 +31,19 @@ function AppInner() {
     (blob: Blob) => sendAudio(blob),
     [sendAudio],
   );
-  const audio = useAudioCapture({ onChunk, audioSource });
+
+  // Mic capture (browser API — works in both browser and Tauri)
+  const micAudio = useAudioCapture({ onChunk, audioSource: "mic" });
+
+  // System audio capture (Tauri-only, via ScreenCaptureKit)
+  const sysAudio = useSystemAudio({
+    onChunk,
+    enabled: isTauri && audioSource === "system",
+  });
+
+  // Unified recording state
+  const isRecording = audioSource === "system" ? sysAudio.isCapturing : micAudio.isRecording;
+  const audioError = audioSource === "system" ? sysAudio.error : micAudio.error;
 
   // Poll model status on mount
   useEffect(() => {
@@ -62,14 +78,22 @@ function AppInner() {
   }, []);
 
   const toggleRecording = useCallback(() => {
-    if (audio.isRecording) {
-      audio.stop();
+    if (isRecording) {
+      if (audioSource === "system") {
+        sysAudio.stop();
+      } else {
+        micAudio.stop();
+      }
       ws.disconnect();
     } else {
       ws.connect();
-      audio.start();
+      if (audioSource === "system") {
+        sysAudio.start();
+      } else {
+        micAudio.start();
+      }
     }
-  }, [audio, ws]);
+  }, [isRecording, audioSource, micAudio, sysAudio, ws]);
 
   // Space to toggle recording
   useEffect(() => {
@@ -84,8 +108,7 @@ function AppInner() {
   }, [toggleRecording]);
 
   const popOutCaptions = useCallback(async () => {
-    // Use Tauri native always-on-top window when available, fallback to browser popup
-    if ("__TAURI_INTERNALS__" in window) {
+    if (isTauri) {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("open_caption_overlay");
     } else {
@@ -108,7 +131,7 @@ function AppInner() {
         sourceLang={sourceLang}
         targetLang={targetLang}
         audioSource={audioSource}
-        isRecording={audio.isRecording}
+        isRecording={isRecording}
         onSourceLangChange={setSourceLang}
         onLangChange={setTargetLang}
         onAudioSourceChange={setAudioSource}
@@ -120,18 +143,17 @@ function AppInner() {
       />
       <SubtitleDisplay entries={entries} />
       <RecordButton
-        isRecording={audio.isRecording}
+        isRecording={isRecording}
         onToggle={toggleRecording}
         isConnected={ws.isConnected}
         isProcessing={ws.isProcessing}
-        error={audio.error}
+        error={audioError}
       />
     </div>
   );
 }
 
 function App() {
-  // Render caption-only overlay for popup window
   if (window.location.pathname === "/caption") {
     return <CaptionOverlay />;
   }

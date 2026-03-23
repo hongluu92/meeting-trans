@@ -3,12 +3,12 @@ import type { TranslationResult } from "../types";
 import { LANG_COLORS } from "../types";
 import { SUBTITLE_CHANNEL } from "../hooks/use-subtitles";
 
-const MAX_VISIBLE = 4;
+const MAX_VISIBLE = 3;
 
 /**
- * Minimal floating caption display for popup window.
- * Listens to BroadcastChannel for subtitle entries from the main window.
- * Shows only the last few bilingual lines on a dark semi-transparent background.
+ * Native-style floating caption overlay.
+ * Transparent background, shows only the last few bilingual lines.
+ * Designed for always-on-top borderless window.
  */
 export function CaptionOverlay() {
   const [entries, setEntries] = useState<TranslationResult[]>([]);
@@ -45,51 +45,61 @@ export function CaptionOverlay() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries.length]);
 
-  return (
-    <div className="h-screen bg-gray-950/95 text-white flex flex-col overflow-hidden select-none">
-      {/* Draggable titlebar area */}
-      <div
-        className="shrink-0 h-7 flex items-center justify-center text-[10px] text-gray-600 uppercase tracking-widest"
-        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
-      >
-        Live Captions
-      </div>
+  // Make the entire window draggable
+  useEffect(() => {
+    document.body.style.background = "transparent";
+    document.documentElement.style.background = "transparent";
+  }, []);
 
-      {/* Subtitles */}
-      <div className="flex-1 overflow-y-auto px-3 pb-2">
-        {entries.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-600 text-sm">Waiting for captions...</p>
-          </div>
-        ) : (
-          entries.map((entry, i) => (
+  return (
+    <div
+      className="h-screen flex flex-col justify-end p-3 select-none"
+      style={{ background: "transparent", WebkitAppRegion: "drag" } as React.CSSProperties}
+    >
+      {entries.length === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-white/30 text-xs">Waiting for captions...</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {entries.map((entry, i) => (
             <CaptionLine key={`${entry.timestamp}-${i}`} entry={entry} />
-          ))
-        )}
-        <div ref={bottomRef} />
-      </div>
+          ))}
+        </div>
+      )}
+      <div ref={bottomRef} />
     </div>
   );
 }
 
 function CaptionLine({ entry }: { entry: TranslationResult }) {
-  const sourceColor = LANG_COLORS[entry.source_lang] ?? "text-gray-400";
+  const sourceColor = LANG_COLORS[entry.source_lang] ?? "text-white/60";
 
   return (
-    <div className={`py-1.5 ${entry.partial ? "opacity-50" : "animate-fade-in"}`}>
-      {/* Source text */}
-      <p className={`text-base leading-snug ${entry.partial ? "text-gray-400 italic" : "text-white"}`}>
-        <span className={`text-[9px] font-medium uppercase mr-1.5 ${sourceColor}`}>
+    <div
+      className={`rounded-xl px-4 py-2.5 backdrop-blur-xl ${
+        entry.partial ? "opacity-60" : "animate-fade-in"
+      }`}
+      style={{
+        background: "rgba(0, 0, 0, 0.75)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+      }}
+    >
+      {/* Source text — larger, white */}
+      <p className={`text-[15px] leading-snug font-medium ${
+        entry.partial ? "text-white/50 italic" : "text-white"
+      }`}>
+        <span className={`text-[9px] uppercase tracking-wider mr-1.5 opacity-60 ${sourceColor}`}>
           {entry.source_lang}
         </span>
         {entry.source_text}{entry.partial ? "..." : ""}
       </p>
 
-      {/* Translation */}
+      {/* Translation — smaller, muted */}
       {(entry.translated_text || entry.translating) && (
-        <p className="text-sm text-gray-400 leading-snug mt-0.5 pl-[2px]">
+        <p className="text-[13px] text-white/70 leading-snug mt-0.5">
           {entry.translating ? (
-            <span className="italic text-gray-600">...</span>
+            <span className="text-white/30 italic">translating...</span>
           ) : (
             entry.translated_text
           )}
