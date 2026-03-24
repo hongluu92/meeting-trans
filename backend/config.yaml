@@ -35,7 +35,7 @@ translation:
   inter_threads: 1
   intra_threads: 8
   beam_size: 1
-  max_decoding_length: 200
+  max_decoding_length: 80
 
 # Supported languages
 languages:

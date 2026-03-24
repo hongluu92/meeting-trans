@@ -223,14 +223,15 @@ async def _process_audio(
 
         # Translate in parallel (debounced for partials to avoid flooding NLLB)
         if will_translate:
-            # Prepend context sentence for better translation coherence
-            text_to_translate = f"{context} {source_text}".strip() if context else source_text
+            # Only use context for final segments (partials need speed over quality)
+            use_context = context and is_final and len(context) < 100
+            text_to_translate = f"{context} {source_text}".strip() if use_context else source_text
             task = asyncio.create_task(
                 _translate_and_send(
                     ws, source_text, detected_lang, target_lang, ts,
                     is_partial=not is_final,
                     full_text=text_to_translate,
-                    context_len=len(context),
+                    context_len=len(context) if use_context else 0,
                 )
             )
             task.add_done_callback(lambda t: logger.error(f"[WS] Translation task error: {t.exception()}") if t.exception() else None)
