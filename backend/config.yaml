@@ -22,9 +22,9 @@ transcription:
 vad:
   threshold: 0.15
   min_speech_ms: 150
-  silence_duration_ms: 500    # silence after speech triggers segment cut
-  max_segment_s: 25           # force-cut long continuous speech
-  interim_interval_s: 1.5     # send partial STT every N seconds while speaking
+  silence_duration_ms: 400    # silence after speech triggers segment cut
+  max_segment_s: 10           # force-cut long continuous speech for shorter subtitles
+  interim_interval_s: 1.0     # send partial STT every N seconds while speaking
 
 # ── Translation (NLLB offline) ─────────────────────────────────
 translation:
