@@ -109,6 +109,19 @@ function AppInner() {
     return () => window.removeEventListener("keydown", handler);
   }, [toggleRecording]);
 
+  // Listen for global toggle from system tray / Cmd+Shift+T
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen("global-toggle-recording", () => {
+        toggleRecording();
+      });
+    })();
+    return () => { unlisten?.(); };
+  }, [toggleRecording]);
+
   const popOutCaptions = useCallback(async () => {
     if (isTauri) {
       const { invoke } = await import("@tauri-apps/api/core");

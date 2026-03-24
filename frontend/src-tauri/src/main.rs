@@ -4,7 +4,12 @@
 mod audio_capture;
 mod backend_server;
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::TrayIconBuilder,
+    Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
+};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 /// Open the native caption overlay — borderless, bottom of screen, always on top.
 #[tauri::command]
@@ -65,6 +70,68 @@ fn open_screen_recording_settings() -> Result<(), String> {
     Ok(())
 }
 
+/// Build the system tray with menu items.
+fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let toggle_recording = MenuItemBuilder::with_id("toggle_recording", "Toggle Recording (⌘⇧T)")
+        .build(app)?;
+    let show_window = MenuItemBuilder::with_id("show_window", "Show Window")
+        .build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", "Quit Meeting Trans")
+        .build(app)?;
+
+    let menu = MenuBuilder::new(app)
+        .item(&toggle_recording)
+        .separator()
+        .item(&show_window)
+        .separator()
+        .item(&quit)
+        .build()?;
+
+    let icon = app.default_window_icon().cloned()
+        .ok_or("No app icon found")?;
+
+    TrayIconBuilder::new()
+        .icon(icon)
+        .menu(&menu)
+        .tooltip("Meeting Trans")
+        .on_menu_event(move |app, event| {
+            match event.id().as_ref() {
+                "toggle_recording" => {
+                    let _ = app.emit("global-toggle-recording", ());
+                }
+                "show_window" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+                "quit" => {
+                    backend_server::stop();
+                    std::process::exit(0);
+                }
+                _ => {}
+            }
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
+/// Register global keyboard shortcut (Cmd+Shift+T).
+fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let shortcut: Shortcut = "CommandOrControl+Shift+T".parse()?;
+
+    app.global_shortcut().on_shortcut(shortcut, {
+        let handle = app.handle().clone();
+        move |_app, _shortcut, _event| {
+            let _ = handle.emit("global-toggle-recording", ());
+        }
+    })?;
+
+    eprintln!("[shortcut] Registered Cmd+Shift+T for toggle recording");
+    Ok(())
+}
+
 fn main() {
     // Start Python backend before Tauri app
     if let Err(e) = backend_server::start() {
@@ -72,6 +139,20 @@ fn main() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .setup(|app| {
+            // System tray
+            if let Err(e) = setup_tray(app) {
+                eprintln!("[tray] Warning: {}", e);
+            }
+
+            // Global shortcut: Cmd+Shift+T
+            if let Err(e) = setup_global_shortcut(app) {
+                eprintln!("[shortcut] Warning: {}", e);
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             open_caption_overlay,
             start_system_audio,
@@ -81,6 +162,5 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 
-    // Stop Python backend when Tauri exits
     backend_server::stop();
 }
