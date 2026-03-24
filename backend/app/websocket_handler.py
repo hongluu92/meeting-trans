@@ -147,28 +147,28 @@ async def _process_audio(
 
         needs_translation = detected_lang != target_lang
         logger.info(
-            f"[WS] STT {'partial' if not is_final else 'final'}: "
-            f"lang={detected_lang} target={target_lang} translate={needs_translation} "
-            f"text='{source_text[:60]}...'"
+            f"[WS] STT {'partial' if not is_final else 'FINAL'}: "
+            f"lang={detected_lang} target={target_lang} "
+            f"text='{source_text[:60]}'"
         )
 
-        # Send STT result immediately (partial or final)
+        # Send STT result immediately
         await ws.send_json({
             "source_lang": detected_lang,
             "source_text": source_text,
             "target_lang": target_lang,
             "translated_text": "" if needs_translation else source_text,
-            "translating": needs_translation and is_final,
+            "translating": needs_translation,
             "partial": not is_final,
             "timestamp": ts,
         })
 
-        # Start translation in parallel — runs on dedicated thread pool,
-        # does NOT block the next STT segment
-        if needs_translation and is_final:
-            logger.info(f"[WS] Starting translation: {detected_lang}->{target_lang}")
+        # Translate both final and partial segments (parallel, non-blocking)
+        # Partials get translated too so user sees translations during continuous speech
+        if needs_translation:
+            logger.info(f"[WS] Translating ({'partial' if not is_final else 'final'}): {detected_lang}->{target_lang}")
             asyncio.create_task(
-                _translate_and_send(ws, source_text, detected_lang, target_lang, ts)
+                _translate_and_send(ws, source_text, detected_lang, target_lang, ts, is_partial=not is_final)
             )
 
     except WebSocketDisconnect:
@@ -187,18 +187,19 @@ async def _translate_and_send(
     source_lang: str,
     target_lang: str,
     timestamp: int,
+    is_partial: bool = False,
 ) -> None:
     """Run translation in background and send result. Does not block STT loop."""
     try:
         translated = await translate_text(source_text, target_lang, source_lang=source_lang)
-        logger.info(f"[WS] Translation done: '{translated[:60]}...'")
+        logger.info(f"[WS] Translation done: '{translated[:60]}'")
         await ws.send_json({
             "source_lang": source_lang,
             "source_text": source_text,
             "target_lang": target_lang,
             "translated_text": translated,
             "translating": False,
-            "partial": False,
+            "partial": is_partial,
             "timestamp": timestamp,
         })
     except (WebSocketDisconnect, RuntimeError):
