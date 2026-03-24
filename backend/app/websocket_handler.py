@@ -178,9 +178,12 @@ async def _process_audio(
 
         # Translate in parallel (debounced for partials to avoid flooding NLLB)
         if needs_translation and translate:
-            asyncio.create_task(
+            logger.info(f"[WS] Spawning translation task: {detected_lang}->{target_lang}")
+            task = asyncio.create_task(
                 _translate_and_send(ws, source_text, detected_lang, target_lang, ts, is_partial=not is_final)
             )
+            # Log if the task fails
+            task.add_done_callback(lambda t: logger.error(f"[WS] Translation task error: {t.exception()}") if t.exception() else None)
 
     except WebSocketDisconnect:
         logger.debug("[WS] client disconnected during audio processing")
