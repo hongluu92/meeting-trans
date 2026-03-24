@@ -182,13 +182,16 @@ export function ControlBar({
 }: ControlBarProps) {
   return (
     <header className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">
-      {/* Left: audio + language controls */}
+      {/* Left: logo + audio + language controls */}
       <div className="flex items-center gap-3 min-w-0">
-        {/* Connection dot */}
-        <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${isConnected ? "bg-emerald-500" : "bg-[var(--red)]"}`}
-          title={isConnected ? "Connected" : "Disconnected"}
-        />
+        {/* Logo + connection status */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <img src="/logo.svg" alt="Meeting Trans" className="w-5 h-5" />
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-emerald-500" : "bg-[var(--red)]"}`}
+            title={isConnected ? "Connected" : "Disconnected"}
+          />
+        </div>
 
         {/* Audio source toggle */}
         {onAudioSourceChange && (
