@@ -93,7 +93,6 @@ async def handle_websocket(ws: WebSocket):
 
     # Language pinning state
     lang_pin = _LangPin()
-    partial_count = 0
     # Sliding context window: last source sentence for context-aware translation
     translation_context = ""
 
@@ -145,13 +144,8 @@ async def handle_websocket(ws: WebSocket):
                     audio, is_final, seg_ts = result
                     effective_src = lang_pin.effective_lang(source_lang)
 
-                    # Debounce partial translations: only translate every 3rd partial
-                    if is_final:
-                        partial_count = 0
-                        translate_this = True
-                    else:
-                        partial_count += 1
-                        translate_this = (partial_count % 3 == 0)
+                    # Only translate final (complete) segments — partials show STT only
+                    translate_this = is_final
 
                     src_text = await _process_audio(
                         ws, audio, effective_src, target_lang,
