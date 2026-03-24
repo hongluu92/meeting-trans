@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   DOMAIN_LABELS,
   LANG_LABELS,
@@ -7,6 +8,7 @@ import {
   type Language,
   type SourceLanguage,
 } from "../types";
+import type { ExportFormat } from "../utils/export-transcript";
 
 interface ControlBarProps {
   isConnected: boolean;
@@ -20,7 +22,7 @@ interface ControlBarProps {
   onAudioSourceChange?: (source: AudioSource) => void;
   onDomainChange: (domain: Domain) => void;
   onClear: () => void;
-  onExport?: () => void;
+  onExport?: (format: ExportFormat) => void;
   onPopOut?: () => void;
 }
 
@@ -144,11 +146,52 @@ function LangPills<T extends string>({
   );
 }
 
-/* ── Action button ── */
+const selectClass =
+  "bg-transparent text-[var(--text-secondary)] border border-[var(--border)] rounded-lg px-2 py-1 text-[11px] cursor-pointer " +
+  "focus:outline-none focus:border-[var(--accent)] hover:border-[var(--text-muted)] " +
+  "transition-colors duration-150";
 
 const btnClass =
   "text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1.5 rounded-lg cursor-pointer " +
   "hover:bg-[var(--bg-elevated)] transition-colors duration-150";
+
+/* ── Export dropdown ── */
+
+const EXPORT_FORMATS: { key: ExportFormat; label: string }[] = [
+  { key: "txt", label: "Text (.txt)" },
+  { key: "srt", label: "SRT subtitles (.srt)" },
+  { key: "vtt", label: "WebVTT (.vtt)" },
+  { key: "json", label: "JSON (.json)" },
+];
+
+function ExportButton({ onExport }: { onExport: (f: ExportFormat) => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={btnClass}
+        title="Export transcript"
+      >
+        <IconDownload />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg shadow-xl py-1 z-50 min-w-[160px]">
+          {EXPORT_FORMATS.map((fmt) => (
+            <button
+              key={fmt.key}
+              onClick={() => { onExport(fmt.key); setOpen(false); }}
+              className="w-full text-left px-3 py-1.5 text-[11px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] cursor-pointer transition-colors duration-100"
+            >
+              {fmt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ── Main Control Bar ── */
 
@@ -189,26 +232,38 @@ export function ControlBar({
         {/* Divider */}
         <div className="w-px h-4 bg-[var(--border)]" />
 
-        {/* Source language pills */}
-        <LangPills
+        {/* Source language */}
+        <select
           value={sourceLang}
-          onChange={onSourceLangChange}
-          options={SOURCE_LANG_LABELS}
+          onChange={(e) => onSourceLangChange(e.target.value as SourceLanguage)}
+          className={selectClass}
           title="Source language"
-        />
+        >
+          {(Object.entries(SOURCE_LANG_LABELS) as [SourceLanguage, string][]).map(
+            ([code, label]) => (
+              <option key={code} value={code}>{label}</option>
+            ),
+          )}
+        </select>
 
         {/* Arrow */}
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3 h-3 text-[var(--text-muted)] shrink-0">
           <path d="M5 12h14m-4-4 4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
 
-        {/* Target language pills */}
-        <LangPills
+        {/* Target language */}
+        <select
           value={targetLang}
-          onChange={onLangChange}
-          options={LANG_LABELS}
+          onChange={(e) => onLangChange(e.target.value as Language)}
+          className={selectClass}
           title="Target language"
-        />
+        >
+          {(Object.entries(LANG_LABELS) as [Language, string][]).map(
+            ([code, label]) => (
+              <option key={code} value={code}>{label}</option>
+            ),
+          )}
+        </select>
       </div>
 
       {/* Center: domain selector */}
@@ -235,9 +290,7 @@ export function ControlBar({
           </button>
         )}
         {onExport && (
-          <button onClick={onExport} className={btnClass} title="Export transcript">
-            <IconDownload />
-          </button>
+          <ExportButton onExport={onExport} />
         )}
         <button onClick={onClear} className={btnClass} title="Clear all">
           <IconTrash />

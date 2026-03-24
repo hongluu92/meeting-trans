@@ -11,6 +11,7 @@ import { useSystemAudio } from "./hooks/use-system-audio";
 import { useWebSocket } from "./hooks/use-websocket";
 import type { AudioSource, Domain, Language, SourceLanguage } from "./types";
 import { downloadTranscript } from "./utils/export-transcript";
+import type { ExportFormat } from "./utils/export-transcript";
 
 const isTauri = "__TAURI_INTERNALS__" in window;
 
@@ -140,7 +141,9 @@ function AppInner() {
         onDomainChange={setDomain}
         onClear={clearEntries}
         onExport={
-          entries.length > 0 ? () => downloadTranscript(entries) : undefined
+          entries.length > 0
+            ? (format: ExportFormat) => downloadTranscript(entries, format)
+            : undefined
         }
         onPopOut={popOutCaptions}
       />

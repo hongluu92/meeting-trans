@@ -37,9 +37,27 @@ translation:
   beam_size: 1
   max_decoding_length: 200
 
-# Supported languages (add more as needed)
+# Supported languages
 languages:
   - "en"
+  - "zh"
   - "ja"
-  - "vi"
   - "ko"
+  - "vi"
+  - "es"
+  - "fr"
+  - "de"
+  - "pt"
+  - "ru"
+  - "ar"
+  - "hi"
+  - "th"
+  - "id"
+  - "ms"
+  - "tl"
+  - "it"
+  - "nl"
+  - "pl"
+  - "tr"
+  - "uk"
+  - "sv"
