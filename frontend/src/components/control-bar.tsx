@@ -116,36 +116,6 @@ function AudioSourceToggle({
 
 /* ── Pill selector for languages ── */
 
-function LangPills<T extends string>({
-  value,
-  onChange,
-  options,
-  title,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: Record<string, string>;
-  title: string;
-}) {
-  return (
-    <div className="flex items-center gap-0.5" title={title}>
-      {Object.entries(options).map(([code, label]) => (
-        <button
-          key={code}
-          onClick={() => onChange(code as T)}
-          className={`px-2 py-0.5 rounded-md text-[11px] font-medium cursor-pointer transition-all duration-150 ${
-            value === code
-              ? "bg-[var(--accent-dim)]/20 text-[var(--accent)] border border-[var(--accent-dim)]/30"
-              : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] border border-transparent"
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 const selectClass =
   "bg-transparent text-[var(--text-secondary)] border border-[var(--border)] rounded-lg px-2 py-1 text-[11px] cursor-pointer " +
   "focus:outline-none focus:border-[var(--accent)] hover:border-[var(--text-muted)] " +
