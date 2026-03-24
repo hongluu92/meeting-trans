@@ -210,18 +210,19 @@ async def _process_audio(
         )
 
         # Send STT result immediately
+        will_translate = needs_translation and translate
         await ws.send_json({
             "source_lang": detected_lang,
             "source_text": source_text,
             "target_lang": target_lang,
             "translated_text": "" if needs_translation else source_text,
-            "translating": needs_translation,
+            "translating": will_translate,
             "partial": not is_final,
             "timestamp": ts,
         })
 
         # Translate in parallel (debounced for partials to avoid flooding NLLB)
-        if needs_translation and translate:
+        if will_translate:
             # Prepend context sentence for better translation coherence
             text_to_translate = f"{context} {source_text}".strip() if context else source_text
             task = asyncio.create_task(
