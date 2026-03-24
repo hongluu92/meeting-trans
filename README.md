@@ -1,107 +1,149 @@
-# Real-Time Multilingual Speech Translator
+# Meeting Trans
 
-Local web app: speak into mic (or capture system audio) → auto-detect language → transcribe → translate → bilingual subtitles.
+Real-time bilingual speech translator. Speak or play audio in one language, get live bilingual subtitles.
 
-Uses Whisper (faster-whisper or mlx-whisper) for STT and NLLB (CTranslate2) for offline translation.
+100% offline — your audio never leaves your computer.
 
 ![Demo](demo.png)
+
+## Download
+
+**[Download for macOS (Apple Silicon)](https://github.com/hongluu92/meeting-trans/releases/latest)**
+
+> Requires macOS 13.0+ and an Apple Silicon Mac (M1/M2/M3/M4).
+
+## What It Does
+
+- Speak into your mic — see real-time bilingual subtitles
+- Play a video or meeting — capture system audio and get live captions
+- Floating caption overlay that stays on top of all windows
+- Export transcripts to text files
+- Works completely offline — no cloud, no API keys, no subscriptions
 
 ## Supported Languages
 
 English, Japanese (日本語), Vietnamese (Tiếng Việt), Korean (한국어)
 
-## Prerequisites
+## Getting Started
 
-- Python 3.10+
-- Node.js 20+ with pnpm
-- 8GB RAM minimum
-- ~2GB disk for Whisper + NLLB models (auto-download on first run)
-- Chrome/Edge browser (mic access)
+### Option 1: Desktop App (Recommended)
 
-## Quick Start
+1. Download the `.dmg` from [Releases](https://github.com/hongluu92/meeting-trans/releases/latest)
+2. Open the DMG, drag **Meeting Trans** to Applications
+3. First launch: right-click the app → **Open** → **Open** (macOS unsigned app warning)
+4. Start the backend (see below) — the app needs it running
+5. Grant **Microphone** and **Screen Recording** permissions when prompted
+
+### Option 2: Web Browser
+
+1. Install prerequisites (see [Development](#development))
+2. Run `make dev`
+3. Open http://localhost:5173
+
+### Starting the Backend
+
+The backend runs the AI models (speech recognition + translation). Start it before using the app:
 
 ```bash
-cp .env.example .env   # API_URL=http://0.0.0.0:8000
-make install           # Install Python + Node dependencies
-make dev               # Start backend (port 8000) + frontend (port 5173)
+# First time setup
+cp .env.example .env
+make install
+
+# Start backend
+make backend
 ```
 
-Open http://localhost:5173, grant mic permission, select target language, and start speaking.
+The first run downloads ~1.5GB of AI models. This only happens once.
 
-## Usage
+## How to Use
 
-1. Click the mic button (or press Space) to start recording
-2. Speak in any supported language (or set source language manually)
-3. Select target language from dropdown
-4. Bilingual subtitles appear in real-time (interim partials + final results)
-5. Click "Export" to download transcript as .txt
-6. Click "Clear" to reset
+1. **Select audio source**: Mic (your voice) or System (video/meeting audio)
+2. **Choose languages**: Source language (or Auto-detect) → Target language
+3. **Press the record button** (or Space) to start
+4. **Bilingual subtitles** appear in real-time
+5. **Pop out captions**: Click the ↗ button for a floating overlay on top of other apps
+6. **Export**: Download your transcript as a text file
+
+### System Audio Capture
+
+To caption videos, meetings, or any audio playing on your computer:
+
+1. Select **System** in the audio source toggle
+2. Click record — macOS will ask for **Screen Recording** permission
+3. Grant permission in System Settings → Privacy → Screen Recording
+4. Play any audio — bilingual captions appear in real-time
 
 ## Architecture
 
 ```
-Browser (React + Vite + TS) ←WebSocket→ FastAPI (Python)
-                                          ├── Whisper (STT + language detection)
-                                          └── NLLB via CTranslate2 (translation)
+Desktop App (Tauri + React)     Python Backend (FastAPI)
+┌─────────────────────┐        ┌──────────────────────────┐
+│ Mic (WebAudio API)  │───WS──▶│ Whisper STT              │
+│ System (ScreenCap)  │        │ (mlx-whisper / faster)    │
+│                     │◀──WS───│                           │
+│ Subtitle Display    │        │ NLLB Translation          │
+│ Caption Overlay     │        │ (CTranslate2, offline)    │
+└─────────────────────┘        └──────────────────────────┘
 ```
 
-- Frontend captures mic audio, resamples to 16kHz float32 PCM via AudioWorklet
-- Streams binary chunks over WebSocket
-- On speech end: Whisper transcribes → NLLB translates → JSON result sent back
+- **Speech-to-Text**: Whisper small model with VAD-based segmentation
+- **Translation**: NLLB 1.3B distilled via CTranslate2
+- **Audio**: 16kHz float32 PCM streamed over WebSocket
+- **System audio**: ScreenCaptureKit (macOS 13+) via Swift helper
 
 ## Configuration
 
 Edit `backend/config.yaml`:
 
-| Section | Key Options |
-|---------|------------|
-| `whisper` | `engine` (`mlx` or `faster-whisper`), `model_size`, `device`, `compute_type` |
-| `vad` | `threshold`, `silence_duration_ms`, `max_segment_s`, `interim_interval_s` |
-| `translation` | NLLB model, beam_size, max_decoding_length |
-| `languages` | List of supported language codes |
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `whisper.engine` | `mlx` (Apple Silicon) or `faster-whisper` (Intel/CUDA) | `mlx` |
+| `whisper.model_size` | `tiny`, `base`, `small`, `medium`, `large-v3` | `small` |
+| `vad.silence_duration_ms` | Silence before cutting a segment | `500` |
+| `vad.max_segment_s` | Max speech segment length | `25` |
+| `translation.beam_size` | Translation quality (higher = better, slower) | `2` |
 
 ## Development
 
+### Prerequisites
+
+- Python 3.10+
+- Node.js 20+ with pnpm
+- Rust (for Tauri desktop app): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- 8GB RAM minimum
+- Xcode (for system audio Swift helper): `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
+
+### Commands
+
 ```bash
-make backend   # Run FastAPI only (port 8000)
-make frontend  # Run Vite only (port 5173)
-make clean     # Remove .venv and node_modules
-```
+make install          # Install Python + Node dependencies
+make dev              # Start backend + frontend (browser mode)
+make backend          # Backend only (port 8000)
+make frontend         # Frontend only (port 5173)
 
-## Project Structure
+# Desktop app
+cd frontend
+pnpm tauri dev        # Dev mode with hot reload
+pnpm tauri build      # Release build (.app + .dmg)
 
-```
-backend/
-  app/
-    main.py              # FastAPI app, lifespan, routes
-    config.py            # YAML config loader with defaults
-    model_loader.py      # Whisper model loading (faster-whisper / mlx)
-    audio_processor.py   # VAD-based streaming audio buffer
-    translator.py        # Whisper STT + NLLB translation
-    websocket_handler.py # WebSocket connection handler
-  config.yaml            # Runtime configuration
-  requirements.txt
-
-frontend/
-  src/
-    App.tsx                          # Main app with recording + subtitle display
-    hooks/use-audio-capture.ts       # Mic/system audio capture
-    hooks/use-websocket.ts           # WebSocket connection management
-    hooks/use-subtitles.ts           # Subtitle state management
-    components/control-bar.tsx       # Language selectors, export, clear
-    components/record-button.tsx     # Recording toggle button
-    components/subtitle-display.tsx  # Bilingual subtitle renderer
-    components/subtitle-entry.tsx    # Single subtitle entry
-    components/loading-screen.tsx    # Model loading indicator
-    components/error-boundary.tsx    # Error boundary wrapper
-    utils/export-transcript.ts       # Transcript export to .txt
-    types.ts                         # TypeScript types
+# Compile Swift audio helper (needed for system audio capture)
+cd frontend/src-tauri/swift-helper
+xcrun swiftc -O -target arm64-apple-macosx13.0 -o capture-audio CaptureAudio.swift \
+  -framework ScreenCaptureKit -framework CoreMedia -framework AVFoundation -framework Accelerate
 ```
 
 ## Troubleshooting
 
-- **Model download slow**: First run downloads Whisper (~150MB) + NLLB (~1.3GB). Be patient.
-- **Mic not working**: Ensure browser has mic permission. HTTPS required for system audio capture.
-- **High RAM usage**: NLLB 1.3B requires ~2GB. Use a smaller Whisper model if constrained.
-- **Apple Silicon (M1/M2/M3/M4)**: Set `whisper.engine: "mlx"` in config.yaml for native acceleration via mlx-whisper.
-- **Mac Intel**: Set `whisper.engine: "faster-whisper"` in config.yaml. Remove `mlx-whisper` from requirements.txt as it only supports Apple Silicon. Use `device: "cpu"` and `compute_type: "int8"` for best performance.
+| Problem | Solution |
+|---------|----------|
+| **"Meeting Trans" can't be opened** | Right-click → Open → Open (unsigned app) |
+| **Models download slow** | First run downloads ~1.5GB. Be patient. |
+| **Mic not working** | Grant Microphone permission in System Settings |
+| **System audio not working** | Grant Screen Recording permission in System Settings |
+| **High RAM usage** | NLLB needs ~2GB. Close other apps if constrained. |
+| **Mac Intel** | Set `whisper.engine: "faster-whisper"` in config.yaml. Remove `mlx-whisper` from requirements.txt. |
+| **Backend not connecting** | Make sure `make backend` is running on port 8000 |
+
+## License
+
+MIT
