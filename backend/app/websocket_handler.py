@@ -145,34 +145,22 @@ async def _process_audio(
         if is_final and lang_pin is not None:
             lang_pin.update(detected_lang)
 
-        # Partial (interim): send STT only, no translation
-        if not is_final:
-            await ws.send_json({
-                "source_lang": detected_lang,
-                "source_text": source_text,
-                "target_lang": target_lang,
-                "translated_text": "",
-                "translating": False,
-                "partial": True,
-                "timestamp": ts,
-            })
-            return
-
-        # Final: send STT then translation
         needs_translation = detected_lang != target_lang
-        stt_result = {
+
+        # Send STT result immediately (partial or final)
+        await ws.send_json({
             "source_lang": detected_lang,
             "source_text": source_text,
             "target_lang": target_lang,
             "translated_text": "" if needs_translation else source_text,
-            "translating": needs_translation,
-            "partial": False,
+            "translating": needs_translation and is_final,
+            "partial": not is_final,
             "timestamp": ts,
-        }
-        await ws.send_json(stt_result)
+        })
 
-        # Step 2: Translate in background (don't block next STT)
-        if needs_translation:
+        # Start translation in parallel — runs on dedicated thread pool,
+        # does NOT block the next STT segment
+        if needs_translation and is_final:
             asyncio.create_task(
                 _translate_and_send(ws, source_text, detected_lang, target_lang, ts)
             )

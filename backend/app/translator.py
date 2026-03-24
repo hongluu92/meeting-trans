@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
@@ -8,6 +9,10 @@ from .config import get_config
 from .model_loader import get_engine, get_mlx_model_path, get_model
 
 logger = logging.getLogger(__name__)
+
+# Separate thread pools so STT and translation run truly in parallel
+_stt_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
+_translate_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="nllb")
 
 
 def _is_hallucination(text: str) -> bool:
@@ -190,11 +195,19 @@ async def transcribe_audio(
 
         return {"source_text": source_text, "source_lang": detected_lang}
 
-    return await asyncio.to_thread(_run)
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_stt_pool, _run)
+
+
+# Lock to protect tokenizer.src_lang (shared mutable state)
+_tokenizer_lock = threading.Lock()
 
 
 async def translate_text(text: str, target_lang: str, source_lang: str = "en") -> str:
-    """Translate text using offline NLLB model via CTranslate2."""
+    """Translate text using offline NLLB model via CTranslate2.
+
+    Runs on a dedicated translation thread pool so it never blocks STT.
+    """
 
     def _run():
         src_code = NLLB_LANG_MAP.get(source_lang)
@@ -206,9 +219,10 @@ async def translate_text(text: str, target_lang: str, source_lang: str = "en") -
         translator, tokenizer = _get_nllb()
         cfg = get_config()["translation"]
 
-        # Set source language (stateful on tokenizer)
-        tokenizer.src_lang = src_code
-        tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(text))
+        # Tokenizer.src_lang is mutable shared state — lock around encode
+        with _tokenizer_lock:
+            tokenizer.src_lang = src_code
+            tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(text))
 
         results = translator.translate_batch(
             [tokens],
@@ -217,7 +231,6 @@ async def translate_text(text: str, target_lang: str, source_lang: str = "en") -
             beam_size=cfg["beam_size"],
         )
 
-        # Skip first token (target lang tag)
         output_tokens = results[0].hypotheses[0][1:]
         return tokenizer.decode(
             tokenizer.convert_tokens_to_ids(output_tokens),
@@ -225,7 +238,8 @@ async def translate_text(text: str, target_lang: str, source_lang: str = "en") -
         )
 
     try:
-        return await asyncio.to_thread(_run)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(_translate_pool, _run)
     except Exception as e:
         logger.error(f"[NLLB] Translation failed: {e}")
         return text
