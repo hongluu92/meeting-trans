@@ -135,7 +135,7 @@ def _get_nllb():
 
 
 async def transcribe_audio(
-    audio_data, source_lang: str = "auto", is_interim: bool = False
+    audio_data, source_lang: str = "auto", is_interim: bool = False, initial_prompt: str | None = None
 ):
     """Transcribe audio to text. Returns dict with source_text, source_lang, or None if no speech.
 
@@ -143,6 +143,7 @@ async def transcribe_audio(
         audio_data: Audio data as numpy array (float32).
         source_lang: Language code or "auto" for detection.
         is_interim: If True, use fast greedy decoding (beam_size=1) for partials.
+        initial_prompt: Domain-specific vocabulary hint for Whisper.
     """
 
     def _run():
@@ -165,6 +166,8 @@ async def transcribe_audio(
                 "no_speech_threshold": cfg.get("no_speech_threshold", 0.6),
                 "logprob_threshold": cfg.get("log_prob_threshold", -1.0),
             }
+            if initial_prompt:
+                mlx_kwargs["initial_prompt"] = initial_prompt
             if source_lang != "auto":
                 mlx_kwargs["language"] = source_lang
             result = mlx_whisper.transcribe(audio_np, **mlx_kwargs)
@@ -181,6 +184,8 @@ async def transcribe_audio(
                 "compression_ratio_threshold": cfg.get("compression_ratio_threshold", 2.4),
                 "log_prob_threshold": cfg.get("log_prob_threshold", -1.0),
             }
+            if initial_prompt:
+                transcribe_kwargs["initial_prompt"] = initial_prompt
             if source_lang != "auto":
                 transcribe_kwargs["language"] = source_lang
             segments, info = model.transcribe(audio_np, **transcribe_kwargs)

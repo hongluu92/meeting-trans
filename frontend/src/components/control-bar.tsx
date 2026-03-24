@@ -1,7 +1,9 @@
 import {
+  DOMAIN_LABELS,
   LANG_LABELS,
   SOURCE_LANG_LABELS,
   type AudioSource,
+  type Domain,
   type Language,
   type SourceLanguage,
 } from "../types";
@@ -14,7 +16,9 @@ interface ControlBarProps {
   isRecording: boolean;
   onSourceLangChange: (lang: SourceLanguage) => void;
   onLangChange: (lang: Language) => void;
+  domain: Domain;
   onAudioSourceChange?: (source: AudioSource) => void;
+  onDomainChange: (domain: Domain) => void;
   onClear: () => void;
   onExport?: () => void;
   onPopOut?: () => void;
@@ -156,7 +160,9 @@ export function ControlBar({
   isRecording,
   onSourceLangChange,
   onLangChange,
+  domain,
   onAudioSourceChange,
+  onDomainChange,
   onClear,
   onExport,
   onPopOut,
@@ -203,6 +209,22 @@ export function ControlBar({
           options={LANG_LABELS}
           title="Target language"
         />
+      </div>
+
+      {/* Center: domain selector */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <select
+          value={domain}
+          onChange={(e) => onDomainChange(e.target.value as Domain)}
+          className="bg-transparent text-[var(--text-muted)] border border-[var(--border)] rounded-lg px-2 py-1 text-[11px] cursor-pointer focus:outline-none focus:border-[var(--accent)] hover:border-[var(--text-muted)] transition-colors duration-150"
+          title="Domain context"
+        >
+          {(Object.entries(DOMAIN_LABELS) as [Domain, string][]).map(
+            ([code, label]) => (
+              <option key={code} value={code}>{label}</option>
+            ),
+          )}
+        </select>
       </div>
 
       {/* Right: actions */}

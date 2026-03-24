@@ -9,7 +9,7 @@ import { useAudioCapture } from "./hooks/use-audio-capture";
 import { useSubtitles } from "./hooks/use-subtitles";
 import { useSystemAudio } from "./hooks/use-system-audio";
 import { useWebSocket } from "./hooks/use-websocket";
-import type { AudioSource, Language, SourceLanguage } from "./types";
+import type { AudioSource, Domain, Language, SourceLanguage } from "./types";
 import { downloadTranscript } from "./utils/export-transcript";
 
 const isTauri = "__TAURI_INTERNALS__" in window;
@@ -17,14 +17,14 @@ const isTauri = "__TAURI_INTERNALS__" in window;
 function AppInner() {
   const [sourceLang, setSourceLang] = useState<SourceLanguage>("auto");
   const [targetLang, setTargetLang] = useState<Language>("vi");
-  // In Tauri: "mic" = browser mic, "system" = native ScreenCaptureKit
   const [audioSource, setAudioSource] = useState<AudioSource>("mic");
+  const [domain, setDomain] = useState<Domain>("general");
   const [modelReady, setModelReady] = useState(false);
   const [modelStatus, setModelStatus] = useState("Checking model status...");
   const [loadingStep, setLoadingStep] = useState("");
 
   const { entries, addEntry, clearEntries } = useSubtitles();
-  const ws = useWebSocket({ sourceLang, targetLang, onResult: addEntry });
+  const ws = useWebSocket({ sourceLang, targetLang, domain, onResult: addEntry });
   const { sendAudio } = ws;
 
   const onChunk = useCallback(
@@ -132,10 +132,12 @@ function AppInner() {
         sourceLang={sourceLang}
         targetLang={targetLang}
         audioSource={audioSource}
+        domain={domain}
         isRecording={isRecording}
         onSourceLangChange={setSourceLang}
         onLangChange={setTargetLang}
         onAudioSourceChange={setAudioSource}
+        onDomainChange={setDomain}
         onClear={clearEntries}
         onExport={
           entries.length > 0 ? () => downloadTranscript(entries) : undefined

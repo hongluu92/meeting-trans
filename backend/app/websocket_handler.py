@@ -12,6 +12,35 @@ logger = logging.getLogger(__name__)
 MAX_CHUNK_BYTES = 2 * 1024 * 1024  # 2MB max per binary frame (~8s of float32 16kHz)
 _LANG_PIN_THRESHOLD = 3  # consecutive same-language detections to pin
 
+# Domain-specific vocabulary prompts for Whisper initial_prompt
+DOMAIN_PROMPTS = {
+    "it": (
+        "Technical discussion about software development, APIs, cloud computing, "
+        "Kubernetes, Docker, CI/CD, microservices, deployment, DevOps, Git, "
+        "React, Python, TypeScript, database, server, frontend, backend."
+    ),
+    "medical": (
+        "Medical discussion about patient care, diagnosis, symptoms, treatment, "
+        "prescription, surgery, MRI, CT scan, blood test, vital signs, "
+        "cardiology, neurology, pharmacy, clinical trial."
+    ),
+    "legal": (
+        "Legal discussion about contracts, plaintiff, defendant, jurisdiction, "
+        "statute, compliance, litigation, arbitration, intellectual property, "
+        "due diligence, liability, regulatory, court ruling."
+    ),
+    "business": (
+        "Business meeting about revenue, stakeholders, KPIs, quarterly results, "
+        "ROI, market analysis, strategy, acquisition, partnership, "
+        "budget, forecast, profit margin, competitive advantage."
+    ),
+    "education": (
+        "Educational discussion about curriculum, students, assessment, "
+        "learning outcomes, pedagogy, lecture, research, thesis, "
+        "academic, university, scholarship, enrollment."
+    ),
+}
+
 
 class _LangPin:
     """Track detected languages and pin after consecutive matches.
@@ -60,10 +89,10 @@ async def handle_websocket(ws: WebSocket):
     if target_lang not in LANG_MAP:
         target_lang = "en"
     buffer = AudioBuffer()
+    domain = ws.query_params.get("domain", "general")
 
     # Language pinning state
     lang_pin = _LangPin()
-    # Track partial translation count to debounce (translate every 2nd partial)
     partial_count = 0
 
     try:
@@ -81,6 +110,8 @@ async def handle_websocket(ws: WebSocket):
                             lang_pin.reset()  # user changed lang, reset pin
                     if "target_lang" in msg and msg["target_lang"] in LANG_MAP:
                         target_lang = msg["target_lang"]
+                    if "domain" in msg:
+                        domain = msg["domain"]
                     # Flush remaining audio on stop signal
                     if msg.get("action") == "stop":
                         result = buffer.flush()
@@ -90,6 +121,7 @@ async def handle_websocket(ws: WebSocket):
                             await _process_audio(
                                 ws, audio, effective_src, target_lang,
                                 is_final, seg_ts, lang_pin,
+                                domain=domain,
                             )
                     continue
                 except json.JSONDecodeError:
@@ -122,6 +154,7 @@ async def handle_websocket(ws: WebSocket):
                         ws, audio, effective_src, target_lang,
                         is_final, seg_ts, lang_pin,
                         translate=translate_this,
+                        domain=domain,
                     )
 
     except WebSocketDisconnect:
@@ -139,13 +172,15 @@ async def _process_audio(
     segment_ts: int,
     lang_pin: _LangPin | None = None,
     translate: bool = True,
+    domain: str = "general",
 ) -> None:
     """Run STT (+ translation if final) on an audio segment and send results."""
     try:
         ts = segment_ts
+        initial_prompt = DOMAIN_PROMPTS.get(domain)
 
         # Step 1: STT (greedy for interims, beam search for finals)
-        stt = await transcribe_audio(audio, source_lang, is_interim=not is_final)
+        stt = await transcribe_audio(audio, source_lang, is_interim=not is_final, initial_prompt=initial_prompt)
         if stt is None:
             if is_final:
                 await ws.send_json({"status": "no_speech"})

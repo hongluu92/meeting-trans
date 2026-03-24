@@ -33,6 +33,17 @@ export const SOURCE_LANG_LABELS: Record<SourceLanguage, string> = {
   ko: "한국어",
 };
 
+export type Domain = "general" | "it" | "medical" | "legal" | "business" | "education";
+
+export const DOMAIN_LABELS: Record<Domain, string> = {
+  general: "General",
+  it: "IT / Tech",
+  medical: "Medical",
+  legal: "Legal",
+  business: "Business",
+  education: "Education",
+};
+
 export const LANG_COLORS: Record<string, string> = {
   en: "text-sky-400",
   ja: "text-rose-400",
