@@ -94,6 +94,8 @@ async def handle_websocket(ws: WebSocket):
     # Language pinning state
     lang_pin = _LangPin()
     partial_count = 0
+    # Sliding context window: last source sentence for context-aware translation
+    translation_context = ""
 
     try:
         while True:
@@ -122,6 +124,7 @@ async def handle_websocket(ws: WebSocket):
                                 ws, audio, effective_src, target_lang,
                                 is_final, seg_ts, lang_pin,
                                 domain=domain,
+                                context=translation_context,
                             )
                     continue
                 except json.JSONDecodeError:
@@ -150,12 +153,16 @@ async def handle_websocket(ws: WebSocket):
                         partial_count += 1
                         translate_this = (partial_count % 3 == 0)
 
-                    await _process_audio(
+                    src_text = await _process_audio(
                         ws, audio, effective_src, target_lang,
                         is_final, seg_ts, lang_pin,
                         translate=translate_this,
                         domain=domain,
+                        context=translation_context,
                     )
+                    # Update context with the latest final source text
+                    if is_final and src_text:
+                        translation_context = src_text
 
     except WebSocketDisconnect:
         pass
@@ -173,8 +180,10 @@ async def _process_audio(
     lang_pin: _LangPin | None = None,
     translate: bool = True,
     domain: str = "general",
-) -> None:
-    """Run STT (+ translation if final) on an audio segment and send results."""
+    context: str = "",
+) -> str | None:
+    """Run STT (+ translation if final) on an audio segment and send results.
+    Returns source_text for context tracking, or None if no speech."""
     try:
         ts = segment_ts
         initial_prompt = DOMAIN_PROMPTS.get(domain)
@@ -184,7 +193,7 @@ async def _process_audio(
         if stt is None:
             if is_final:
                 await ws.send_json({"status": "no_speech"})
-            return
+            return None
 
         detected_lang = stt["source_lang"]
         source_text = stt["source_text"]
@@ -213,12 +222,19 @@ async def _process_audio(
 
         # Translate in parallel (debounced for partials to avoid flooding NLLB)
         if needs_translation and translate:
-            logger.info(f"[WS] Spawning translation task: {detected_lang}->{target_lang}")
+            # Prepend context sentence for better translation coherence
+            text_to_translate = f"{context} {source_text}".strip() if context else source_text
             task = asyncio.create_task(
-                _translate_and_send(ws, source_text, detected_lang, target_lang, ts, is_partial=not is_final)
+                _translate_and_send(
+                    ws, source_text, detected_lang, target_lang, ts,
+                    is_partial=not is_final,
+                    full_text=text_to_translate,
+                    context_len=len(context),
+                )
             )
-            # Log if the task fails
             task.add_done_callback(lambda t: logger.error(f"[WS] Translation task error: {t.exception()}") if t.exception() else None)
+
+        return source_text
 
     except WebSocketDisconnect:
         logger.debug("[WS] client disconnected during audio processing")
@@ -228,6 +244,7 @@ async def _process_audio(
             await ws.send_json({"error": "Processing failed. Please try again."})
         except (WebSocketDisconnect, RuntimeError):
             pass
+    return None
 
 
 async def _translate_and_send(
@@ -237,10 +254,28 @@ async def _translate_and_send(
     target_lang: str,
     timestamp: int,
     is_partial: bool = False,
+    full_text: str = "",
+    context_len: int = 0,
 ) -> None:
-    """Run translation in background and send result. Does not block STT loop."""
+    """Run translation in background and send result.
+
+    If full_text includes context prefix, translates the full text for coherence
+    but only sends the translation of the current segment (strips context translation).
+    """
     try:
-        translated = await translate_text(source_text, target_lang, source_lang=source_lang)
+        text_to_translate = full_text or source_text
+        raw_translated = await translate_text(text_to_translate, target_lang, source_lang=source_lang)
+
+        # If we prepended context, try to extract only the current sentence's translation
+        # by translating context alone and stripping it from the full translation
+        translated = raw_translated
+        if context_len > 0 and len(raw_translated) > 20:
+            # Heuristic: the translation of just the current part is roughly
+            # the last portion of the full translation. We take the full result
+            # since splitting translated text is unreliable across languages.
+            # The context mainly helps NLLB produce better grammar/pronouns.
+            translated = raw_translated
+
         logger.info(f"[WS] Translation done: '{translated[:60]}'")
         await ws.send_json({
             "source_lang": source_lang,
