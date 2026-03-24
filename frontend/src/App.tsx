@@ -44,6 +44,7 @@ function AppInner() {
   // Unified recording state
   const isRecording = audioSource === "system" ? sysAudio.isCapturing : micAudio.isRecording;
   const audioError = audioSource === "system" ? sysAudio.error : micAudio.error;
+  const { needsPermission, openPermissionSettings } = sysAudio;
 
   // Poll model status on mount
   useEffect(() => {
@@ -148,6 +149,8 @@ function AppInner() {
         isConnected={ws.isConnected}
         isProcessing={ws.isProcessing}
         error={audioError}
+        needsPermission={needsPermission}
+        onOpenSettings={openPermissionSettings}
       />
     </div>
   );

@@ -58,12 +58,23 @@ fn stop_system_audio() -> Result<(), String> {
     audio_capture::stop()
 }
 
+/// Open macOS Screen Recording privacy settings.
+#[tauri::command]
+fn open_screen_recording_settings() -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             open_caption_overlay,
             start_system_audio,
             stop_system_audio,
+            open_screen_recording_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
