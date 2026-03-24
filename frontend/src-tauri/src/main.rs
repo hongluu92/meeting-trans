@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio_capture;
+mod backend_server;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -13,7 +14,6 @@ fn open_caption_overlay(app: tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    // Get primary monitor dimensions to position at bottom center
     let main_window = app.get_webview_window("main").ok_or("no main window")?;
     let monitor = main_window
         .current_monitor()
@@ -27,7 +27,7 @@ fn open_caption_overlay(app: tauri::AppHandle) -> Result<(), String> {
     let caption_w = 700.0;
     let caption_h = 200.0;
     let x = (screen_w - caption_w) / 2.0;
-    let y = screen_h - caption_h - 60.0; // 60px above dock
+    let y = screen_h - caption_h - 60.0;
 
     let window = WebviewWindowBuilder::new(&app, "caption", WebviewUrl::App("/caption".into()))
         .title("")
@@ -46,19 +46,16 @@ fn open_caption_overlay(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Start capturing system audio via ScreenCaptureKit helper.
 #[tauri::command]
 fn start_system_audio(app: tauri::AppHandle) -> Result<(), String> {
     audio_capture::start(app)
 }
 
-/// Stop system audio capture.
 #[tauri::command]
 fn stop_system_audio() -> Result<(), String> {
     audio_capture::stop()
 }
 
-/// Open macOS Screen Recording privacy settings.
 #[tauri::command]
 fn open_screen_recording_settings() -> Result<(), String> {
     std::process::Command::new("open")
@@ -69,6 +66,11 @@ fn open_screen_recording_settings() -> Result<(), String> {
 }
 
 fn main() {
+    // Start Python backend before Tauri app
+    if let Err(e) = backend_server::start() {
+        eprintln!("[backend] Warning: {}", e);
+    }
+
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             open_caption_overlay,
@@ -78,4 +80,7 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    // Stop Python backend when Tauri exits
+    backend_server::stop();
 }
