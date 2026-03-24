@@ -61,8 +61,10 @@ async def handle_websocket(ws: WebSocket):
         target_lang = "en"
     buffer = AudioBuffer()
 
-    # Language pinning state: after consecutive same-language detections, pin it
+    # Language pinning state
     lang_pin = _LangPin()
+    # Track partial translation count to debounce (translate every 2nd partial)
+    partial_count = 0
 
     try:
         while True:
@@ -107,9 +109,19 @@ async def handle_websocket(ws: WebSocket):
                 if result is not None:
                     audio, is_final, seg_ts = result
                     effective_src = lang_pin.effective_lang(source_lang)
+
+                    # Debounce partial translations: only translate every 3rd partial
+                    if is_final:
+                        partial_count = 0
+                        translate_this = True
+                    else:
+                        partial_count += 1
+                        translate_this = (partial_count % 3 == 0)
+
                     await _process_audio(
                         ws, audio, effective_src, target_lang,
                         is_final, seg_ts, lang_pin,
+                        translate=translate_this,
                     )
 
     except WebSocketDisconnect:
@@ -126,6 +138,7 @@ async def _process_audio(
     is_final: bool,
     segment_ts: int,
     lang_pin: _LangPin | None = None,
+    translate: bool = True,
 ) -> None:
     """Run STT (+ translation if final) on an audio segment and send results."""
     try:
@@ -163,10 +176,8 @@ async def _process_audio(
             "timestamp": ts,
         })
 
-        # Translate both final and partial segments (parallel, non-blocking)
-        # Partials get translated too so user sees translations during continuous speech
-        if needs_translation:
-            logger.info(f"[WS] Translating ({'partial' if not is_final else 'final'}): {detected_lang}->{target_lang}")
+        # Translate in parallel (debounced for partials to avoid flooding NLLB)
+        if needs_translation and translate:
             asyncio.create_task(
                 _translate_and_send(ws, source_text, detected_lang, target_lang, ts, is_partial=not is_final)
             )
