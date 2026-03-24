@@ -28,7 +28,7 @@ vad:
 
 # ── Translation (NLLB offline) ─────────────────────────────────
 translation:
-  model: "OpenNMT/nllb-200-distilled-600M-ct2-int8"
+  model: "JustFrederik/nllb-200-distilled-600M-ct2-int8"
   tokenizer: "facebook/nllb-200-distilled-600M"
   device: "cpu"
   compute_type: "int8"
