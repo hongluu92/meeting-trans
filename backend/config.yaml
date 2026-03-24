@@ -4,15 +4,15 @@
 # compute_type: int8, float16, float32, int8_float16 (float16/int8_float16 require CUDA)
 whisper:
   engine: "mlx"                   # "faster-whisper" or "mlx"
-  model_size: "small"
+  model_size: "base"
   device: "cpu"
   compute_type: "int8"
-  mlx_model: "mlx-community/whisper-small-mlx"  # HuggingFace repo (mlx engine only)
+  mlx_model: "mlx-community/whisper-base-mlx"  # HuggingFace repo (mlx engine only)
 
 # ── Transcription ────────────────────────────────────────────────
 transcription:
-  beam_size: 3
-  best_of: 3
+  beam_size: 1
+  best_of: 1
   vad_filter: true
   no_speech_threshold: 0.6              # skip segments with high no-speech probability
   compression_ratio_threshold: 2.4      # skip segments with abnormal compression (hallucination)
@@ -28,14 +28,14 @@ vad:
 
 # ── Translation (NLLB offline) ─────────────────────────────────
 translation:
-  model: "OpenNMT/nllb-200-distilled-1.3B-ct2-int8"
-  tokenizer: "facebook/nllb-200-distilled-1.3B"
+  model: "OpenNMT/nllb-200-distilled-600M-ct2-int8"
+  tokenizer: "facebook/nllb-200-distilled-600M"
   device: "cpu"
   compute_type: "int8"
   inter_threads: 1
   intra_threads: 4
-  beam_size: 2
-  max_decoding_length: 256
+  beam_size: 1
+  max_decoding_length: 200
 
 # Supported languages (add more as needed)
 languages:
