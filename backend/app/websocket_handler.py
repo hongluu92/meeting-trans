@@ -94,8 +94,6 @@ async def handle_websocket(ws: WebSocket):
 
     # Language pinning state
     lang_pin = _LangPin()
-    # Sliding context window: last source sentence for context-aware translation
-    translation_context = ""
 
     try:
         while True:
@@ -126,7 +124,6 @@ async def handle_websocket(ws: WebSocket):
                                 ws, audio, effective_src, target_lang,
                                 is_final, seg_ts, lang_pin,
                                 domain=domain,
-                                context=translation_context,
                                 engine=engine,
                             )
                     continue
@@ -156,12 +153,8 @@ async def handle_websocket(ws: WebSocket):
                         is_final, seg_ts, lang_pin,
                         translate=translate_this,
                         domain=domain,
-                        context=translation_context,
                         engine=engine,
                     )
-                    # Update context with the latest final source text
-                    if is_final and src_text:
-                        translation_context = src_text
 
     except WebSocketDisconnect:
         pass
@@ -179,7 +172,6 @@ async def _process_audio(
     lang_pin: _LangPin | None = None,
     translate: bool = True,
     domain: str = "general",
-    context: str = "",
     engine: str = "nllb",
 ) -> str | None:
     """Run STT (+ translation if final) on an audio segment and send results.
@@ -223,15 +215,10 @@ async def _process_audio(
 
         # Translate in parallel (debounced for partials to avoid flooding NLLB)
         if will_translate:
-            # Only use context for final segments (partials need speed over quality)
-            use_context = context and is_final and len(context) < 100
-            text_to_translate = f"{context} {source_text}".strip() if use_context else source_text
             task = asyncio.create_task(
                 _translate_and_send(
                     ws, source_text, detected_lang, target_lang, ts,
                     is_partial=not is_final,
-                    full_text=text_to_translate,
-                    context_len=len(context) if use_context else 0,
                     engine=engine,
                 )
             )
@@ -257,31 +244,14 @@ async def _translate_and_send(
     target_lang: str,
     timestamp: int,
     is_partial: bool = False,
-    full_text: str = "",
-    context_len: int = 0,
     engine: str = "nllb",
 ) -> None:
-    """Run translation in background and send result.
-
-    If full_text includes context prefix, translates the full text for coherence
-    but only sends the translation of the current segment (strips context translation).
-    """
+    """Run translation in background and send result."""
     try:
-        text_to_translate = full_text or source_text
         if engine == "google":
-            raw_translated = await translate_text_google(text_to_translate, target_lang, source_lang=source_lang)
+            translated = await translate_text_google(source_text, target_lang, source_lang=source_lang)
         else:
-            raw_translated = await translate_text(text_to_translate, target_lang, source_lang=source_lang)
-
-        # If we prepended context, try to extract only the current sentence's translation
-        # by translating context alone and stripping it from the full translation
-        translated = raw_translated
-        if context_len > 0 and len(raw_translated) > 20:
-            # Heuristic: the translation of just the current part is roughly
-            # the last portion of the full translation. We take the full result
-            # since splitting translated text is unreliable across languages.
-            # The context mainly helps NLLB produce better grammar/pronouns.
-            translated = raw_translated
+            translated = await translate_text(source_text, target_lang, source_lang=source_lang)
 
         logger.info(f"[WS] Translation done: '{translated[:60]}'")
         await ws.send_json({
