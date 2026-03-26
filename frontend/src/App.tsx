@@ -33,18 +33,19 @@ function AppInner() {
     [sendAudio],
   );
 
-  // Mic capture (browser API — works in both browser and Tauri)
-  const micAudio = useAudioCapture({ onChunk, audioSource: "mic" });
+  // Browser audio capture (mic via getUserMedia, system via getDisplayMedia)
+  const micAudio = useAudioCapture({ onChunk, audioSource });
 
   // System audio capture (Tauri-only, via ScreenCaptureKit)
+  const useTauriSystemAudio = isTauri && audioSource === "system";
   const sysAudio = useSystemAudio({
     onChunk,
-    enabled: isTauri && audioSource === "system",
+    enabled: useTauriSystemAudio,
   });
 
   // Unified recording state
-  const isRecording = audioSource === "system" ? sysAudio.isCapturing : micAudio.isRecording;
-  const audioError = audioSource === "system" ? sysAudio.error : micAudio.error;
+  const isRecording = useTauriSystemAudio ? sysAudio.isCapturing : micAudio.isRecording;
+  const audioError = useTauriSystemAudio ? sysAudio.error : micAudio.error;
   const { needsPermission, openPermissionSettings } = sysAudio;
 
   // Poll model status on mount
@@ -81,7 +82,7 @@ function AppInner() {
 
   const toggleRecording = useCallback(() => {
     if (isRecording) {
-      if (audioSource === "system") {
+      if (useTauriSystemAudio) {
         sysAudio.stop();
       } else {
         micAudio.stop();
@@ -89,7 +90,7 @@ function AppInner() {
       ws.disconnect();
     } else {
       ws.connect();
-      if (audioSource === "system") {
+      if (useTauriSystemAudio) {
         sysAudio.start();
       } else {
         micAudio.start();
