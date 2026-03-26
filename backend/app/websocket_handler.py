@@ -5,7 +5,7 @@ import logging
 from fastapi import WebSocket, WebSocketDisconnect
 
 from .audio_processor import AudioBuffer
-from .translator import LANG_MAP, transcribe_audio, translate_text
+from .translator import LANG_MAP, transcribe_audio, translate_text, translate_text_google
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,7 @@ async def handle_websocket(ws: WebSocket):
         target_lang = "en"
     buffer = AudioBuffer()
     domain = ws.query_params.get("domain", "general")
+    engine = ws.query_params.get("engine", "nllb")
 
     # Language pinning state
     lang_pin = _LangPin()
@@ -113,6 +114,8 @@ async def handle_websocket(ws: WebSocket):
                         target_lang = msg["target_lang"]
                     if "domain" in msg:
                         domain = msg["domain"]
+                    if "engine" in msg and msg["engine"] in ("nllb", "google"):
+                        engine = msg["engine"]
                     # Flush remaining audio on stop signal
                     if msg.get("action") == "stop":
                         result = buffer.flush()
@@ -124,6 +127,7 @@ async def handle_websocket(ws: WebSocket):
                                 is_final, seg_ts, lang_pin,
                                 domain=domain,
                                 context=translation_context,
+                                engine=engine,
                             )
                     continue
                 except json.JSONDecodeError:
@@ -153,6 +157,7 @@ async def handle_websocket(ws: WebSocket):
                         translate=translate_this,
                         domain=domain,
                         context=translation_context,
+                        engine=engine,
                     )
                     # Update context with the latest final source text
                     if is_final and src_text:
@@ -175,6 +180,7 @@ async def _process_audio(
     translate: bool = True,
     domain: str = "general",
     context: str = "",
+    engine: str = "nllb",
 ) -> str | None:
     """Run STT (+ translation if final) on an audio segment and send results.
     Returns source_text for context tracking, or None if no speech."""
@@ -226,6 +232,7 @@ async def _process_audio(
                     is_partial=not is_final,
                     full_text=text_to_translate,
                     context_len=len(context) if use_context else 0,
+                    engine=engine,
                 )
             )
             task.add_done_callback(lambda t: logger.error(f"[WS] Translation task error: {t.exception()}") if t.exception() else None)
@@ -252,6 +259,7 @@ async def _translate_and_send(
     is_partial: bool = False,
     full_text: str = "",
     context_len: int = 0,
+    engine: str = "nllb",
 ) -> None:
     """Run translation in background and send result.
 
@@ -260,7 +268,10 @@ async def _translate_and_send(
     """
     try:
         text_to_translate = full_text or source_text
-        raw_translated = await translate_text(text_to_translate, target_lang, source_lang=source_lang)
+        if engine == "google":
+            raw_translated = await translate_text_google(text_to_translate, target_lang, source_lang=source_lang)
+        else:
+            raw_translated = await translate_text(text_to_translate, target_lang, source_lang=source_lang)
 
         # If we prepended context, try to extract only the current sentence's translation
         # by translating context alone and stripping it from the full translation

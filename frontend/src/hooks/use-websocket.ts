@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Domain, Language, SourceLanguage, TranslationResult } from "../types";
+import type { Domain, Language, SourceLanguage, TranslationEngine, TranslationResult } from "../types";
 
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_DELAY_MS = 2000;
@@ -8,10 +8,11 @@ interface UseWebSocketOptions {
   sourceLang: SourceLanguage;
   targetLang: Language;
   domain: Domain;
+  engine: TranslationEngine;
   onResult: (result: TranslationResult) => void;
 }
 
-export function useWebSocket({ sourceLang, targetLang, domain, onResult }: UseWebSocketOptions) {
+export function useWebSocket({ sourceLang, targetLang, domain, engine, onResult }: UseWebSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -19,6 +20,7 @@ export function useWebSocket({ sourceLang, targetLang, domain, onResult }: UseWe
   const sourceLangRef = useRef(sourceLang);
   const targetLangRef = useRef(targetLang);
   const domainRef = useRef(domain);
+  const engineRef = useRef(engine);
   const onResultRef = useRef(onResult);
   const connectRef = useRef<() => void>(undefined);
 
@@ -48,6 +50,13 @@ export function useWebSocket({ sourceLang, targetLang, domain, onResult }: UseWe
     }
   }, [domain]);
 
+  useEffect(() => {
+    engineRef.current = engine;
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ engine }));
+    }
+  }, [engine]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -63,7 +72,7 @@ export function useWebSocket({ sourceLang, targetLang, domain, onResult }: UseWe
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const hostname = window.location.hostname;
     const apiPort = import.meta.env.VITE_API_PORT || "8000";
-    const url = `${protocol}//${hostname}:${apiPort}/ws/translate?target_lang=${targetLangRef.current}&source_lang=${sourceLangRef.current}&domain=${domainRef.current}`;
+    const url = `${protocol}//${hostname}:${apiPort}/ws/translate?target_lang=${targetLangRef.current}&source_lang=${sourceLangRef.current}&domain=${domainRef.current}&engine=${engineRef.current}`;
 
     const ws = new WebSocket(url);
     wsRef.current = ws;

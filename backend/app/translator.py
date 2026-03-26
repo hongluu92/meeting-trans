@@ -280,3 +280,31 @@ async def translate_text(text: str, target_lang: str, source_lang: str = "en") -
     except Exception as e:
         logger.error(f"[NLLB] Translation failed: {e}")
         return text
+
+
+# Google Translate language code mapping (our short codes -> Google codes)
+GOOGLE_LANG_MAP = {
+    "en": "en", "zh": "zh-CN", "ja": "ja", "ko": "ko", "vi": "vi",
+    "es": "es", "fr": "fr", "de": "de", "pt": "pt", "ru": "ru",
+    "ar": "ar", "hi": "hi", "th": "th", "id": "id", "ms": "ms",
+    "tl": "tl", "it": "it", "nl": "nl", "pl": "pl", "tr": "tr",
+    "uk": "uk", "sv": "sv",
+}
+
+
+async def translate_text_google(text: str, target_lang: str, source_lang: str = "en") -> str:
+    """Translate text using Google Translate via deep-translator (free, no API key)."""
+
+    def _run():
+        from deep_translator import GoogleTranslator
+
+        src = GOOGLE_LANG_MAP.get(source_lang, source_lang)
+        tgt = GOOGLE_LANG_MAP.get(target_lang, target_lang)
+        return GoogleTranslator(source=src, target=tgt).translate(text)
+
+    try:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(_translate_pool, _run)
+    except Exception as e:
+        logger.warning(f"[Google] Translation failed, falling back to NLLB: {e}")
+        return await translate_text(text, target_lang, source_lang=source_lang)

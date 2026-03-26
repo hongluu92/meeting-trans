@@ -3,10 +3,12 @@ import {
   DOMAIN_LABELS,
   LANG_LABELS,
   SOURCE_LANG_LABELS,
+  TRANSLATION_ENGINE_LABELS,
   type AudioSource,
   type Domain,
   type Language,
   type SourceLanguage,
+  type TranslationEngine,
 } from "../types";
 import type { ExportFormat } from "../utils/export-transcript";
 
@@ -18,6 +20,8 @@ interface ControlBarProps {
   isRecording: boolean;
   onSourceLangChange: (lang: SourceLanguage) => void;
   onLangChange: (lang: Language) => void;
+  engine: TranslationEngine;
+  onEngineChange: (engine: TranslationEngine) => void;
   domain: Domain;
   onAudioSourceChange?: (source: AudioSource) => void;
   onDomainChange: (domain: Domain) => void;
@@ -114,6 +118,39 @@ function AudioSourceToggle({
   );
 }
 
+/* ── Segmented toggle for translation engine (NLLB / Google) ── */
+
+function TranslationEngineToggle({
+  value,
+  onChange,
+}: {
+  value: TranslationEngine;
+  onChange: (v: TranslationEngine) => void;
+}) {
+  const options: { key: TranslationEngine; label: string }[] = [
+    { key: "nllb", label: "NLLB" },
+    { key: "google", label: "Google" },
+  ];
+
+  return (
+    <div className="flex items-center bg-[var(--bg-secondary)] rounded-lg p-0.5">
+      {options.map((opt) => (
+        <button
+          key={opt.key}
+          onClick={() => onChange(opt.key)}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-all duration-150 ${
+            value === opt.key
+              ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm"
+              : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+          }`}
+        >
+          <span>{opt.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ── Pill selector for languages ── */
 
 const selectClass =
@@ -173,6 +210,8 @@ export function ControlBar({
   isRecording,
   onSourceLangChange,
   onLangChange,
+  engine,
+  onEngineChange,
   domain,
   onAudioSourceChange,
   onDomainChange,
@@ -239,8 +278,9 @@ export function ControlBar({
         </select>
       </div>
 
-      {/* Center: domain selector */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* Center: engine + domain */}
+      <div className="flex items-center gap-2 shrink-0">
+        <TranslationEngineToggle value={engine} onChange={onEngineChange} />
         <select
           value={domain}
           onChange={(e) => onDomainChange(e.target.value as Domain)}

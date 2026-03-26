@@ -17,10 +17,16 @@ export type Language =
 
 export type SourceLanguage = "auto" | Language;
 export type AudioSource = "mic" | "system";
+export type TranslationEngine = "nllb" | "google";
 
 export const AUDIO_SOURCE_LABELS: Record<AudioSource, string> = {
   mic: "Microphone",
   system: "System Audio",
+};
+
+export const TRANSLATION_ENGINE_LABELS: Record<TranslationEngine, string> = {
+  nllb: "NLLB (Offline)",
+  google: "Google",
 };
 
 export const LANG_LABELS: Record<Language, string> = {

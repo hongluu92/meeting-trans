@@ -9,7 +9,7 @@ import { useAudioCapture } from "./hooks/use-audio-capture";
 import { useSubtitles } from "./hooks/use-subtitles";
 import { useSystemAudio } from "./hooks/use-system-audio";
 import { useWebSocket } from "./hooks/use-websocket";
-import type { AudioSource, Domain, Language, SourceLanguage } from "./types";
+import type { AudioSource, Domain, Language, SourceLanguage, TranslationEngine } from "./types";
 import { downloadTranscript } from "./utils/export-transcript";
 import type { ExportFormat } from "./utils/export-transcript";
 
@@ -20,12 +20,13 @@ function AppInner() {
   const [targetLang, setTargetLang] = useState<Language>("vi");
   const [audioSource, setAudioSource] = useState<AudioSource>("mic");
   const [domain, setDomain] = useState<Domain>("general");
+  const [engine, setEngine] = useState<TranslationEngine>("nllb");
   const [modelReady, setModelReady] = useState(false);
   const [modelStatus, setModelStatus] = useState("Checking model status...");
   const [loadingStep, setLoadingStep] = useState("");
 
   const { entries, addEntry, clearEntries } = useSubtitles();
-  const ws = useWebSocket({ sourceLang, targetLang, domain, onResult: addEntry });
+  const ws = useWebSocket({ sourceLang, targetLang, domain, engine, onResult: addEntry });
   const { sendAudio } = ws;
 
   const onChunk = useCallback(
@@ -152,6 +153,8 @@ function AppInner() {
         onSourceLangChange={setSourceLang}
         onLangChange={setTargetLang}
         onAudioSourceChange={setAudioSource}
+        engine={engine}
+        onEngineChange={setEngine}
         onDomainChange={setDomain}
         onClear={clearEntries}
         onExport={
