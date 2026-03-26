@@ -20,7 +20,7 @@ function AppInner() {
   const [targetLang, setTargetLang] = useState<Language>("vi");
   const [audioSource, setAudioSource] = useState<AudioSource>("mic");
   const [domain, setDomain] = useState<Domain>("general");
-  const [engine, setEngine] = useState<TranslationEngine>("nllb");
+  const [engine, setEngine] = useState<TranslationEngine>("google");
   const [modelReady, setModelReady] = useState(false);
   const [modelStatus, setModelStatus] = useState("Checking model status...");
   const [loadingStep, setLoadingStep] = useState("");

@@ -128,8 +128,8 @@ function TranslationEngineToggle({
   onChange: (v: TranslationEngine) => void;
 }) {
   const options: { key: TranslationEngine; label: string }[] = [
-    { key: "nllb", label: "NLLB" },
     { key: "google", label: "Google" },
+    { key: "nllb", label: "NLLB" },
   ];
 
   return (
@@ -281,18 +281,20 @@ export function ControlBar({
       {/* Center: engine + domain */}
       <div className="flex items-center gap-2 shrink-0">
         <TranslationEngineToggle value={engine} onChange={onEngineChange} />
-        <select
-          value={domain}
-          onChange={(e) => onDomainChange(e.target.value as Domain)}
-          className="bg-transparent text-[var(--text-muted)] border border-[var(--border)] rounded-lg px-2 py-1 text-[11px] cursor-pointer focus:outline-none focus:border-[var(--accent)] hover:border-[var(--text-muted)] transition-colors duration-150"
-          title="Domain context"
-        >
-          {(Object.entries(DOMAIN_LABELS) as [Domain, string][]).map(
-            ([code, label]) => (
-              <option key={code} value={code}>{label}</option>
-            ),
-          )}
-        </select>
+        {engine === "nllb" && (
+          <select
+            value={domain}
+            onChange={(e) => onDomainChange(e.target.value as Domain)}
+            className="bg-transparent text-[var(--text-muted)] border border-[var(--border)] rounded-lg px-2 py-1 text-[11px] cursor-pointer focus:outline-none focus:border-[var(--accent)] hover:border-[var(--text-muted)] transition-colors duration-150"
+            title="Domain context"
+          >
+            {(Object.entries(DOMAIN_LABELS) as [Domain, string][]).map(
+              ([code, label]) => (
+                <option key={code} value={code}>{label}</option>
+              ),
+            )}
+          </select>
+        )}
       </div>
 
       {/* Right: actions */}
