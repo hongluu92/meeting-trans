@@ -1,18 +1,38 @@
 import asyncio
 import logging
+import unicodedata
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
 from .config import get_config
-from .model_loader import get_engine, get_mlx_model_path, get_model
+from .model_loader import (
+    get_engine,
+    get_mlx_model_path,
+    get_model,
+    load_gipformer,
+    should_use_gipformer,
+)
 
 logger = logging.getLogger(__name__)
 
 # Separate thread pools so STT and translation run truly in parallel
 _stt_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="stt")
 _translate_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="nllb")
+
+KNOWN_BAD_PHRASE_PARTS = (
+    "hay subscribe cho kenh",
+    "de khong bo lo nhung video hap dan",
+)
+
+
+def _normalize_for_match(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.lower()
+    text = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in text)
+    return " ".join(text.split())
 
 
 def _is_hallucination(text: str) -> bool:
@@ -21,12 +41,16 @@ def _is_hallucination(text: str) -> bool:
     Handles both space-separated languages (EN, VI) and CJK languages (JA, KO)
     where words are not separated by spaces.
     """
-    import re
     from collections import Counter
 
     text = text.strip()
     if not text:
         return False
+
+    normalized = _normalize_for_match(text)
+    if all(part in normalized for part in KNOWN_BAD_PHRASE_PARTS):
+        logger.debug(f"[STT] hallucination detected (known bad phrase): '{text[:80]}...'")
+        return True
 
     # --- CJK substring repetition (Japanese, Korean, Chinese) ---
     # Find shortest repeating substring that covers most of the text
@@ -57,6 +81,17 @@ def _is_hallucination(text: str) -> bool:
             return True
 
     return False
+
+
+def _transcribe_with_gipformer(audio_np: np.ndarray) -> dict[str, str] | None:
+    recognizer = load_gipformer()
+    stream = recognizer.create_stream()
+    stream.accept_waveform(16000, audio_np)
+    recognizer.decode_streams([stream])
+    source_text = stream.result.text.strip()
+    if not source_text:
+        return None
+    return {"source_text": source_text, "source_lang": "vi"}
 
 # faster-whisper language codes -> our short codes
 WHISPER_LANG_MAP = {
@@ -186,6 +221,20 @@ async def transcribe_audio(
         # Use greedy decoding for interim (speed), full beam search for final (quality)
         beam_size = 1 if is_interim else cfg["beam_size"]
         best_of = 1 if is_interim else cfg["best_of"]
+
+        if should_use_gipformer(source_lang):
+            try:
+                result = _transcribe_with_gipformer(audio_np)
+                if result is None:
+                    return None
+                if _is_hallucination(result["source_text"]):
+                    return None
+                return result
+            except Exception as e:
+                logger.warning(
+                    "[STT] Gipformer failed for Vietnamese, falling back to Whisper: %s",
+                    e,
+                )
 
         if engine == "mlx":
             import mlx_whisper

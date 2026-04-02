@@ -13,3 +13,5 @@ huggingface_hub>=0.20.0
 numpy>=1.24.0
 mlx-whisper>=0.4.0  # Apple Silicon only
 deep-translator>=1.11.0
+soundfile>=0.12.0
+sherpa-onnx>=1.10.0

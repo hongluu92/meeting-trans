@@ -15,6 +15,9 @@ _lock = threading.Lock()
 
 _engine = None
 _mlx_model_path = None
+_gipformer = None
+_gipformer_loaded = False
+_gipformer_lock = threading.Lock()
 
 
 def get_engine() -> str:
@@ -31,6 +34,63 @@ def get_mlx_model_path() -> str:
             "mlx_model", "mlx-community/whisper-small"
         )
     return _mlx_model_path
+
+
+def should_use_gipformer(source_lang: str) -> bool:
+    cfg = get_config().get("gipformer", {})
+    return bool(cfg.get("enabled_for_vietnamese", True) and source_lang == "vi")
+
+
+def get_gipformer_status() -> dict:
+    return {"gipformer_loaded": _gipformer_loaded}
+
+
+def load_gipformer():
+    global _gipformer, _gipformer_loaded
+
+    if _gipformer_loaded:
+        return _gipformer
+
+    with _gipformer_lock:
+        if _gipformer_loaded:
+            return _gipformer
+
+        cfg = get_config().get("gipformer", {})
+        quantize = cfg.get("quantize", "int8")
+        file_map = cfg.get("files", {}).get(quantize)
+        if not file_map:
+            raise ValueError(f"Unsupported gipformer quantize mode: {quantize}")
+
+        logger.info(
+            "Loading gipformer model repo=%s quantize=%s",
+            cfg.get("repo_id"),
+            quantize,
+        )
+
+        import sherpa_onnx
+        from huggingface_hub import hf_hub_download
+
+        model_paths = {
+            key: hf_hub_download(repo_id=cfg["repo_id"], filename=filename)
+            for key, filename in file_map.items()
+        }
+        model_paths["tokens"] = hf_hub_download(
+            repo_id=cfg["repo_id"], filename="tokens.txt"
+        )
+
+        _gipformer = sherpa_onnx.OfflineRecognizer.from_transducer(
+            encoder=model_paths["encoder"],
+            decoder=model_paths["decoder"],
+            joiner=model_paths["joiner"],
+            tokens=model_paths["tokens"],
+            num_threads=cfg.get("num_threads", 4),
+            sample_rate=cfg.get("sample_rate", 16000),
+            feature_dim=cfg.get("feature_dim", 80),
+            decoding_method=cfg.get("decoding_method", "modified_beam_search"),
+        )
+        _gipformer_loaded = True
+        logger.info("gipformer loaded successfully")
+        return _gipformer
 
 
 def set_loading_step(step: str):

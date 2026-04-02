@@ -10,7 +10,12 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_config
-from .model_loader import get_model_status, load_model, set_loading_step
+from .model_loader import (
+    get_gipformer_status,
+    get_model_status,
+    load_model,
+    set_loading_step,
+)
 from .translator import preload_nllb
 from .websocket_handler import handle_websocket
 
@@ -66,7 +71,9 @@ async def status():
     cfg = get_config()
     return {
         **get_model_status(),
+        **get_gipformer_status(),
         "whisper": cfg["whisper"],
+        "gipformer": cfg["gipformer"],
         "languages": cfg["languages"],
     }
 

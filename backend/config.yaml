@@ -9,6 +9,16 @@ whisper:
   compute_type: "int8"
   mlx_model: "mlx-community/whisper-small-mlx"  # HuggingFace repo (mlx engine only)
 
+# ── Gipformer STT Model (Vietnamese only) ───────────────────────
+gipformer:
+  enabled_for_vietnamese: true
+  repo_id: "g-group-ai-lab/gipformer-65M-rnnt"
+  quantize: "int8"                # "fp32" or "int8"
+  num_threads: 4
+  feature_dim: 80
+  sample_rate: 16000
+  decoding_method: "modified_beam_search"
+
 # ── Transcription ────────────────────────────────────────────────
 transcription:
   beam_size: 1

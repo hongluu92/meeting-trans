@@ -15,6 +15,27 @@ _DEFAULTS = {
         "compute_type": "int8",
         "mlx_model": "mlx-community/whisper-small",
     },
+    "gipformer": {
+        "enabled_for_vietnamese": True,
+        "repo_id": "g-group-ai-lab/gipformer-65M-rnnt",
+        "quantize": "int8",
+        "num_threads": 4,
+        "feature_dim": 80,
+        "sample_rate": 16000,
+        "decoding_method": "modified_beam_search",
+        "files": {
+            "fp32": {
+                "encoder": "encoder-epoch-35-avg-6.onnx",
+                "decoder": "decoder-epoch-35-avg-6.onnx",
+                "joiner": "joiner-epoch-35-avg-6.onnx",
+            },
+            "int8": {
+                "encoder": "encoder-epoch-35-avg-6.int8.onnx",
+                "decoder": "decoder-epoch-35-avg-6.int8.onnx",
+                "joiner": "joiner-epoch-35-avg-6.int8.onnx",
+            },
+        },
+    },
     "transcription": {
         "beam_size": 1,
         "best_of": 1,
