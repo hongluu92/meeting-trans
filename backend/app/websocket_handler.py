@@ -1,6 +1,8 @@
 import asyncio
+import contextlib
 import json
 import logging
+from collections.abc import Awaitable, Callable
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -94,6 +96,8 @@ async def handle_websocket(ws: WebSocket):
 
     # Language pinning state
     lang_pin = _LangPin()
+    translate_queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=1)
+    translate_worker = asyncio.create_task(_translation_worker(ws, translate_queue))
 
     try:
         while True:
@@ -114,6 +118,9 @@ async def handle_websocket(ws: WebSocket):
                         domain = msg["domain"]
                     if "engine" in msg and msg["engine"] in ("nllb", "google"):
                         engine = msg["engine"]
+                    if msg.get("action") == "ping":
+                        await ws.send_json({"action": "pong"})
+                        continue
                     # Flush remaining audio on stop signal
                     if msg.get("action") == "stop":
                         result = buffer.flush()
@@ -125,6 +132,7 @@ async def handle_websocket(ws: WebSocket):
                                 is_final, seg_ts, lang_pin,
                                 domain=domain,
                                 engine=engine,
+                                enqueue_translation=lambda item: _enqueue_latest(translate_queue, item),
                             )
                     continue
                 except json.JSONDecodeError:
@@ -154,12 +162,17 @@ async def handle_websocket(ws: WebSocket):
                         translate=translate_this,
                         domain=domain,
                         engine=engine,
+                        enqueue_translation=lambda item: _enqueue_latest(translate_queue, item),
                     )
 
     except WebSocketDisconnect:
         pass
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
+    finally:
+        translate_worker.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await translate_worker
 
 
 async def _process_audio(
@@ -173,6 +186,7 @@ async def _process_audio(
     translate: bool = True,
     domain: str = "general",
     engine: str = "nllb",
+    enqueue_translation: Callable[[dict], Awaitable[None]] | None = None,
 ) -> str | None:
     """Run STT (+ translation if final) on an audio segment and send results.
     Returns source_text for context tracking, or None if no speech."""
@@ -215,14 +229,26 @@ async def _process_audio(
 
         # Translate in parallel (debounced for partials to avoid flooding NLLB)
         if will_translate:
-            task = asyncio.create_task(
-                _translate_and_send(
-                    ws, source_text, detected_lang, target_lang, ts,
+            item = {
+                "source_text": source_text,
+                "source_lang": detected_lang,
+                "target_lang": target_lang,
+                "timestamp": ts,
+                "is_partial": not is_final,
+                "engine": engine,
+            }
+            if enqueue_translation is not None:
+                await enqueue_translation(item)
+            else:
+                await _translate_and_send(
+                    ws,
+                    source_text,
+                    detected_lang,
+                    target_lang,
+                    ts,
                     is_partial=not is_final,
                     engine=engine,
                 )
-            )
-            task.add_done_callback(lambda t: logger.error(f"[WS] Translation task error: {t.exception()}") if t.exception() else None)
 
         return source_text
 
@@ -235,6 +261,41 @@ async def _process_audio(
         except (WebSocketDisconnect, RuntimeError):
             pass
     return None
+
+
+async def _enqueue_latest(queue: asyncio.Queue[dict], item: dict) -> None:
+    """Keep queue bounded by replacing stale queued item with the newest one."""
+    if queue.full():
+        try:
+            queue.get_nowait()
+            queue.task_done()
+        except asyncio.QueueEmpty:
+            pass
+
+    try:
+        queue.put_nowait(item)
+    except asyncio.QueueFull:
+        logger.warning("[WS] translation queue still full, dropping segment")
+
+
+async def _translation_worker(ws: WebSocket, queue: asyncio.Queue[dict]) -> None:
+    """Single translation worker per WebSocket connection."""
+    while True:
+        item = await queue.get()
+        try:
+            await _translate_and_send(
+                ws,
+                item["source_text"],
+                item["source_lang"],
+                item["target_lang"],
+                item["timestamp"],
+                is_partial=item["is_partial"],
+                engine=item["engine"],
+            )
+        except Exception as e:
+            logger.error(f"[WS] Translation task error: {e}", exc_info=True)
+        finally:
+            queue.task_done()
 
 
 async def _translate_and_send(

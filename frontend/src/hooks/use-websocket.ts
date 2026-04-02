@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Domain, Language, SourceLanguage, TranslationEngine, TranslationResult } from "../types";
 
-const MAX_RECONNECT_ATTEMPTS = 3;
-const RECONNECT_DELAY_MS = 2000;
+const MAX_RECONNECT_ATTEMPTS = 8;
+const RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 15000;
+const HEARTBEAT_INTERVAL_MS = 15000;
+const MAX_WS_BUFFERED_BYTES = 2 * 1024 * 1024;
+const RESUME_WS_BUFFERED_BYTES = 512 * 1024;
 
 interface UseWebSocketOptions {
   sourceLang: SourceLanguage;
@@ -23,6 +27,8 @@ export function useWebSocket({ sourceLang, targetLang, domain, engine, onResult 
   const engineRef = useRef(engine);
   const onResultRef = useRef(onResult);
   const connectRef = useRef<() => void>(undefined);
+  const heartbeatRef = useRef<number | null>(null);
+  const droppingAudioRef = useRef(false);
 
   // Keep refs current
   useEffect(() => {
@@ -61,6 +67,10 @@ export function useWebSocket({ sourceLang, targetLang, domain, engine, onResult 
   useEffect(() => {
     return () => {
       reconnectCountRef.current = MAX_RECONNECT_ATTEMPTS;
+      if (heartbeatRef.current !== null) {
+        window.clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
       wsRef.current?.close();
       wsRef.current = null;
     };
@@ -80,6 +90,15 @@ export function useWebSocket({ sourceLang, targetLang, domain, engine, onResult 
     ws.onopen = () => {
       setIsConnected(true);
       reconnectCountRef.current = 0;
+      droppingAudioRef.current = false;
+      if (heartbeatRef.current !== null) {
+        window.clearInterval(heartbeatRef.current);
+      }
+      heartbeatRef.current = window.setInterval(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ action: "ping" }));
+        }
+      }, HEARTBEAT_INTERVAL_MS);
     };
 
     ws.onmessage = (event) => {
@@ -94,6 +113,9 @@ export function useWebSocket({ sourceLang, targetLang, domain, engine, onResult 
           setIsProcessing(false);
           return;
         }
+        if (data.action === "pong") {
+          return;
+        }
         onResultRef.current(data as TranslationResult);
         // Only clear processing when translation is done (or not needed)
         if (!data.translating) {
@@ -101,16 +123,27 @@ export function useWebSocket({ sourceLang, targetLang, domain, engine, onResult 
         }
       } catch {
         console.error("[WS] failed to parse message");
+        setIsProcessing(false);
       }
     };
 
     ws.onclose = () => {
       setIsConnected(false);
+      setIsProcessing(false);
+      droppingAudioRef.current = false;
+      if (heartbeatRef.current !== null) {
+        window.clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
       wsRef.current = null;
 
       if (reconnectCountRef.current < MAX_RECONNECT_ATTEMPTS) {
         reconnectCountRef.current++;
-        setTimeout(() => connectRef.current?.(), RECONNECT_DELAY_MS);
+        const delay = Math.min(
+          MAX_RECONNECT_DELAY_MS,
+          RECONNECT_DELAY_MS * 2 ** (reconnectCountRef.current - 1),
+        );
+        setTimeout(() => connectRef.current?.(), delay);
       }
     };
 
@@ -128,6 +161,10 @@ export function useWebSocket({ sourceLang, targetLang, domain, engine, onResult 
       wsRef.current.send(JSON.stringify({ action: "stop" }));
     }
     reconnectCountRef.current = MAX_RECONNECT_ATTEMPTS;
+    if (heartbeatRef.current !== null) {
+      window.clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
     // Small delay to let the stop message send before closing
     setTimeout(() => {
       wsRef.current?.close();
@@ -138,10 +175,23 @@ export function useWebSocket({ sourceLang, targetLang, domain, engine, onResult 
   }, []);
 
   const sendAudio = useCallback((blob: Blob) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      setIsProcessing(true);
-      wsRef.current.send(blob);
+    const ws = wsRef.current;
+    if (ws?.readyState !== WebSocket.OPEN) return;
+
+    const buffered = ws.bufferedAmount;
+    if (buffered > MAX_WS_BUFFERED_BYTES) {
+      droppingAudioRef.current = true;
+      return;
     }
+    if (droppingAudioRef.current && buffered > RESUME_WS_BUFFERED_BYTES) {
+      return;
+    }
+    if (droppingAudioRef.current && buffered <= RESUME_WS_BUFFERED_BYTES) {
+      droppingAudioRef.current = false;
+    }
+
+    setIsProcessing(true);
+    ws.send(blob);
   }, []);
 
   return { isConnected, isProcessing, connect, disconnect, sendAudio };

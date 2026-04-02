@@ -10,7 +10,7 @@ export function SubtitleDisplay({ entries }: SubtitleDisplayProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "auto" });
   }, [entries.length]);
 
   if (entries.length === 0) {

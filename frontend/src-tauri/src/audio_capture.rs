@@ -88,8 +88,9 @@ pub fn stop() -> Result<(), String> {
 
 /// Read float32 PCM chunks from the helper's stdout and emit as Tauri events.
 fn read_pcm_stream(mut stdout: impl Read + Send + 'static, app: AppHandle) {
-    // 16kHz * 4 bytes/sample * 0.256s = 16384 bytes per chunk (~256ms)
-    let chunk_size = 16384;
+    // 16kHz * 4 bytes/sample * 0.512s = 32768 bytes per chunk (~512ms).
+    // Slightly larger chunks reduce event overhead on the webview main thread.
+    let chunk_size = 32768;
     let mut buf = vec![0u8; chunk_size];
 
     loop {

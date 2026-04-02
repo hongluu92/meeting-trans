@@ -122,6 +122,7 @@ class AudioBuffer:
                     self._silence_count += WINDOW_SAMPLES
 
         if self._speech_start < 0:
+            self._trim_idle_buffer()
             return None
 
         speech_len = len(self._pcm) - self._speech_start
@@ -169,6 +170,23 @@ class AudioBuffer:
             return (audio.copy(), False, self._segment_ts)
 
         return None
+
+    def _trim_idle_buffer(self) -> None:
+        """Keep only a tiny tail when idle to avoid unbounded silent-buffer growth."""
+        if self._speech_start >= 0:
+            return
+
+        keep_tail = WINDOW_SAMPLES
+        if len(self._pcm) <= keep_tail:
+            return
+
+        # Trim only after enough analyzed data has accumulated to avoid frequent copies.
+        if self._vad_analyzed_up_to < WINDOW_SAMPLES * 10:
+            return
+
+        drop = len(self._pcm) - keep_tail
+        self._pcm = self._pcm[drop:].copy()
+        self._vad_analyzed_up_to = max(0, self._vad_analyzed_up_to - drop)
 
     def _extract_segment(self) -> np.ndarray:
         """Extract speech segment from buffer, trim silence tail, reset state."""
