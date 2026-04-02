@@ -29,3 +29,18 @@ backend/models/
 frontend/src-tauri/target/
 frontend/src-tauri/gen/
 frontend/src-tauri/swift-helper/capture-audio
+
+# Local agent/tooling artifacts (do not publish)
+.claude/
+.opencode/
+.repomixignore
+AGENTS.md
+CLAUDE.md
+release-manifest.json
+frontend/src-tauri/Entitlements.plist
+
+# Local planning scratch
+plans/260322-2304-replace-translate-text-nllb/
+plans/reports/brainstorm-260322-2304-replace-translate-text.md
+plans/reports/researcher-260322-2304-ctranslate2-nllb-setup.md
+plans/templates/
