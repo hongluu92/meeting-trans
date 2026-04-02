@@ -193,6 +193,7 @@ async def _process_audio(
     try:
         ts = segment_ts
         initial_prompt = DOMAIN_PROMPTS.get(domain)
+        same_language_requested = source_lang != "auto" and source_lang == target_lang
 
         # Step 1: STT (greedy for interims, beam search for finals)
         stt = await transcribe_audio(audio, source_lang, is_interim=not is_final, initial_prompt=initial_prompt)
@@ -208,7 +209,7 @@ async def _process_audio(
         if is_final and lang_pin is not None:
             lang_pin.update(detected_lang)
 
-        needs_translation = detected_lang != target_lang
+        needs_translation = detected_lang != target_lang and not same_language_requested
         logger.info(
             f"[WS] STT {'partial' if not is_final else 'FINAL'}: "
             f"lang={detected_lang} target={target_lang} "
@@ -221,7 +222,7 @@ async def _process_audio(
             "source_lang": detected_lang,
             "source_text": source_text,
             "target_lang": target_lang,
-            "translated_text": "" if needs_translation else source_text,
+            "translated_text": "",
             "translating": will_translate,
             "partial": not is_final,
             "timestamp": ts,

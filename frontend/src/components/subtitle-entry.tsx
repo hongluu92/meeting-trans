@@ -7,6 +7,7 @@ interface SubtitleEntryProps {
 
 export function SubtitleEntry({ entry }: SubtitleEntryProps) {
   const sourceColor = LANG_COLORS[entry.source_lang] ?? "text-[var(--text-muted)]";
+  const showTranslation = entry.source_lang !== entry.target_lang && (Boolean(entry.translated_text) || Boolean(entry.translating));
   const time = new Date(entry.timestamp).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -35,7 +36,7 @@ export function SubtitleEntry({ entry }: SubtitleEntryProps) {
           </div>
 
           {/* Translation */}
-          {(entry.translated_text || entry.translating) && (
+          {showTranslation && (
             <div className="pl-[calc(2ch+0.5rem)]">
               {entry.translating ? (
                 <span className="text-[var(--text-muted)] text-sm italic">translating...</span>
