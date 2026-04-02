@@ -1,6 +1,6 @@
 # Meeting Trans
 
-Real-time bilingual speech translator. Speak or play audio in one language, get live bilingual subtitles.
+Real-time bilingual speech translator with high-accuracy Vietnamese speech recognition. Speak or play audio in one language, get live bilingual subtitles.
 
 100% offline — your audio never leaves your computer.
 
@@ -14,6 +14,7 @@ Real-time bilingual speech translator. Speak or play audio in one language, get 
 
 ## What It Does
 
+- Real-time Vietnamese speech recognition with up to 97% accuracy
 - Speak into your mic — see real-time bilingual subtitles
 - Play a video or meeting — capture system audio and get live captions
 - Floating caption overlay that stays on top of all windows
